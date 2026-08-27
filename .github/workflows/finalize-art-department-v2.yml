@@ -2,8 +2,10 @@ name: Finalize Art Department V2 refactor
 
 on:
   push:
-    branches: [feature/art-department-v2]
-    paths: [.github/workflows/finalize-art-department-v2.yml]
+    branches:
+      - feature/art-department-v2
+    paths:
+      - .github/workflows/finalize-art-department-v2.yml
 
 permissions:
   contents: write
@@ -17,79 +19,8 @@ jobs:
           ref: feature/art-department-v2
           fetch-depth: 0
 
-      - name: Apply integration fixes
-        shell: bash
-        run: |
-          python3 <<'PY'
-          from pathlib import Path
-
-          ui = Path('美术台/Views/ArtDepartmentV2Views.swift')
-          text = ui.read_text()
-          text = text.replace('List(selection: $store.selectedSection) {', 'List {', 1)
-          text = text.replace(
-          '''Label(section.rawValue, systemImage: section.systemImage)
-                            .tag(section)''',
-          '''Button {
-                            store.selectedSection = section
-                        } label: {
-                            Label(section.rawValue, systemImage: section.systemImage)
-                                .foregroundStyle(store.selectedSection == section ? .primary : .secondary)
-                        }
-                        .buttonStyle(.plain)''', 1)
-          ui.write_text(text)
-
-          client = Path('美术台/Services/ArtDepartmentV2Clients.swift')
-          text = client.read_text()
-          text = text.replace(
-          '''        var body: [String: Any] = [
-            "model": recipe.model.isEmpty ? configuration.model : recipe.model,
-            "prompt": prompt,
-            "size": recipe.size,
-            "response_format": "b64_json",
-            "watermark": recipe.watermark,
-        ]
-        if !negativePrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            body["negative_prompt"] = negativePrompt
-        }''',
-          '''        let cleanNegative = negativePrompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        let resolvedPrompt = cleanNegative.isEmpty
-            ? prompt
-            : prompt + "\\n\\n必须避免：" + cleanNegative
-        var body: [String: Any] = [
-            "model": recipe.model.isEmpty ? configuration.model : recipe.model,
-            "prompt": resolvedPrompt,
-            "size": recipe.size,
-            "response_format": "b64_json",
-            "watermark": recipe.watermark,
-        ]''', 1)
-          client.write_text(text)
-
-          store = Path('美术台/Stores/ArtDepartmentV2Store.swift')
-          text = store.read_text()
-          text = text.replace(
-          '''    var selectedAsset: ProductionAsset? {
-        guard let selectedAssetID else { return filteredAssets.first }
-        return currentProject?.assets.first { $0.id == selectedAssetID }
-    }''',
-          '''    var selectedAsset: ProductionAsset? {
-        guard let selectedAssetID,
-              let selected = currentProject?.assets.first(where: {
-                  $0.id == selectedAssetID
-                    && $0.kind == selectedAssetKind
-                    && $0.reviewDecision != .rejected
-              }) else {
-            return filteredAssets.first
-        }
-        return selected
-    }''', 1)
-          store.write_text(text)
-
-          persistence = Path('美术台/Services/ArtDepartmentV2Persistence.swift')
-          text = persistence.read_text()
-          if 'import FoundationXML' not in text:
-              text = text.replace('import Foundation\n', 'import Foundation\nimport FoundationXML\n', 1)
-          persistence.write_text(text)
-          PY
+      - name: Apply deterministic integration fixes
+        run: python3 scripts/finalize_art_department_v2.py
 
       - name: Parse and assert V2 product path
         shell: bash
@@ -124,21 +55,9 @@ jobs:
         run: |
           rm -f .github/workflows/validate-art-department-v2.yml
           rm -f .github/workflows/finalize-art-department-v2.yml
+          rm -f scripts/finalize_art_department_v2.py
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- \
-            '美术台/Models/ArtDepartmentV2Models.swift' \
-            '美术台/Services/ArtDepartmentV2Persistence.swift' \
-            '美术台/Services/ArtDepartmentV2Clients.swift' \
-            '美术台/Services/ArtDepartmentV2Pipeline.swift' \
-            '美术台/Stores/ArtDepartmentV2Store.swift' \
-            '美术台/Views/ArtDepartmentV2Views.swift' \
-            '美术台/Views/ArtDepartmentV2SettingsView.swift' \
-            '美术台/ContentView.swift' \
-            '美术台/App/MyApp.swift' \
-            '美术台Tests/ArtDepartmentV2Tests.swift' \
-            README.md docs \
-            .github/workflows/validate-art-department-v2.yml \
-            .github/workflows/finalize-art-department-v2.yml
+          git add -A
           git commit -m 'feat: finalize evidence-first art department v2'
           git push origin HEAD:feature/art-department-v2
