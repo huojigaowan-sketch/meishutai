@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import FoundationXML
 
 actor ArtDepartmentPersistence {
     static let shared = ArtDepartmentPersistence()

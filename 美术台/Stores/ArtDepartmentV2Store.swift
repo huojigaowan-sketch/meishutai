@@ -36,8 +36,15 @@ final class ArtDepartmentV2Store {
     }
 
     var selectedAsset: ProductionAsset? {
-        guard let selectedAssetID else { return filteredAssets.first }
-        return currentProject?.assets.first { $0.id == selectedAssetID }
+        guard let selectedAssetID,
+              let selected = currentProject?.assets.first(where: {
+                  $0.id == selectedAssetID
+                    && $0.kind == selectedAssetKind
+                    && $0.reviewDecision != .rejected
+              }) else {
+            return filteredAssets.first
+        }
+        return selected
     }
 
     var selectedStyleCards: [StylePromptCard] {

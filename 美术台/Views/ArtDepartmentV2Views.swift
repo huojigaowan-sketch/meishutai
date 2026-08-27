@@ -78,11 +78,16 @@ struct ArtDepartmentV2RootView: View {
             }
             .padding(18)
 
-            List(selection: $store.selectedSection) {
+            List {
                 Section("工作流") {
                     ForEach(ArtWorkspaceSection.allCases) { section in
-                        Label(section.rawValue, systemImage: section.systemImage)
-                            .tag(section)
+                        Button {
+                            store.selectedSection = section
+                        } label: {
+                            Label(section.rawValue, systemImage: section.systemImage)
+                                .foregroundStyle(store.selectedSection == section ? .primary : .secondary)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
 

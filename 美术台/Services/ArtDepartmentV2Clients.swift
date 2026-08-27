@@ -164,16 +164,17 @@ nonisolated struct ArkImageGenerationClient: Sendable {
         recipe: ImageGenerationRecipe,
         referenceImages: [Data]
     ) async throws -> [ArtGeneratedImagePayload] {
+        let cleanNegative = negativePrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedPrompt = cleanNegative.isEmpty
+            ? prompt
+            : prompt + "\n\n必须避免：" + cleanNegative
         var body: [String: Any] = [
             "model": recipe.model.isEmpty ? configuration.model : recipe.model,
-            "prompt": prompt,
+            "prompt": resolvedPrompt,
             "size": recipe.size,
             "response_format": "b64_json",
             "watermark": recipe.watermark,
         ]
-        if !negativePrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            body["negative_prompt"] = negativePrompt
-        }
         if !referenceImages.isEmpty {
             body["image"] = referenceImages.map { "data:image/png;base64,\($0.base64EncodedString())" }
         }
