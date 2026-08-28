@@ -89,11 +89,30 @@ jobs:
                           values.extend(extract_prompt_objects(item))
               return values
           '''
-          if text.count(old_files) != 1 or text.count(old_extractor) != 1:
-              raise SystemExit('reviewed upstream parser anchor mismatch')
-          path.write_text(text.replace(old_files, new_files).replace(old_extractor, new_extractor))
+          old_view = '''    replace_once(path, "    let imageURL: URL?\\n", "    let image: NSImage?\\n")
+              replace_once(
+                  path,
+                  "                if let imageURL, let image = NSImage(contentsOf: imageURL) {\\n                    Image(nsImage: image).resizable().scaledToFill()\\n",
+                  "                if let image {\\n                    Image(nsImage: image).resizable().scaledToFill()\\n",
+              )'''
+          new_view = '''    replace_once(
+                  path,
+                  "private struct StyleCardView: View {\\n    let card: StylePromptCard\\n    let imageURL: URL?\\n",
+                  "private struct StyleCardView: View {\\n    let card: StylePromptCard\\n    let image: NSImage?\\n",
+              )
+              replace_once(
+                  path,
+                  "                RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(0.04))\\n                if let imageURL, let image = NSImage(contentsOf: imageURL) {\\n                    Image(nsImage: image).resizable().scaledToFill()\\n",
+                  "                RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(0.04))\\n                if let image {\\n                    Image(nsImage: image).resizable().scaledToFill()\\n",
+              )'''
+          anchors = [(old_files, new_files), (old_extractor, new_extractor), (old_view, new_view)]
+          if any(text.count(old) != 1 for old, _ in anchors):
+              raise SystemExit('reviewed migration anchor mismatch')
+          for old, new in anchors:
+              text = text.replace(old, new)
+          path.write_text(text)
           PY
-          echo 'c302013b0ddae02b4c5235297731d56a918c899867e1ce54f587280f450239a5  /tmp/apply_manual_style_vault.py' | shasum -a 256 -c -
+          echo 'ae5ff8bf79de0af3e6fbc88ee703f75ff0e207ef8b8f4af24351e72fa58cf579  /tmp/apply_manual_style_vault.py' | shasum -a 256 -c -
           python3 /tmp/apply_manual_style_vault.py
           rm /tmp/apply_manual_style_vault.py /tmp/apply_manual_style_vault.py.gz.b64
 
