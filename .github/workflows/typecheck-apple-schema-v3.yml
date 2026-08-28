@@ -82,6 +82,11 @@ jobs:
           text = text.replace('private struct ArkImageResponse', 'nonisolated private struct ArkImageResponse')
           clients.write_text(text)
 
+          tests = Path('美术台Tests/ArtDepartmentV2Tests.swift')
+          tests.write_text(
+              tests.read_text().replace('@testable import 美术台', '@testable import AssetDesk')
+          )
+
           project = Path('美术台.xcodeproj/project.pbxproj')
           text = project.read_text()
           text = text.replace('MACOSX_DEPLOYMENT_TARGET = 27.0;', 'MACOSX_DEPLOYMENT_TARGET = 26.0;')
