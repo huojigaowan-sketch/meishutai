@@ -31,7 +31,7 @@ jobs:
           set -euo pipefail
           cat .github/style-vault-patch/part-* > /tmp/apply_manual_style_vault.py.gz.b64
           echo 'c7708647e7333303ebb6985b5d6bd96128723d90a6a4af9ee2c993dd3ca83cc8  /tmp/apply_manual_style_vault.py.gz.b64' | shasum -a 256 -c -
-          base64 --decode /tmp/apply_manual_style_vault.py.gz.b64 | gzip -dc > /tmp/apply_manual_style_vault.py
+          base64 --decode -i /tmp/apply_manual_style_vault.py.gz.b64 | gzip -dc > /tmp/apply_manual_style_vault.py
           echo 'a8ba25a7d29266ad05db8f66c5ba88f75c9ce64ddac40497269d087351045505  /tmp/apply_manual_style_vault.py' | shasum -a 256 -c -
           python3 /tmp/apply_manual_style_vault.py
           rm /tmp/apply_manual_style_vault.py /tmp/apply_manual_style_vault.py.gz.b64
