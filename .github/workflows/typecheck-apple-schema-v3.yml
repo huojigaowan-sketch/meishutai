@@ -7,6 +7,7 @@ on:
       - .github/workflows/typecheck-apple-schema-v3.yml
       - '美术台/**'
       - '美术台Tests/**'
+      - '美术台.xcodeproj/**'
 
 permissions:
   contents: write
@@ -49,12 +50,43 @@ jobs:
         run: |
           python3 <<'PY'
           from pathlib import Path
-          path = Path('美术台/Services/AppleStructuredExtractionEngine.swift')
-          text = path.read_text()
+
+          apple = Path('美术台/Services/AppleStructuredExtractionEngine.swift')
+          text = apple.read_text()
           text = text.replace('GenerationOptions(samplingMode: .greedy)', 'GenerationOptions(sampling: .greedy)')
           text = text.replace('        let observations = try await request.perform(on: imageData)\n        guard let first = observations.first else {\n            throw ArtDepartmentV2Error.imageDataMissing\n        }', '        let first = try await request.perform(on: imageData)')
           text = text.replace('        let request = GenerateImageFeaturePrintRequest()\n        async let firstResult = request.perform(on: lhs)\n        async let secondResult = request.perform(on: rhs)\n        guard let first = try await firstResult.first,\n              let second = try await secondResult.first else {\n            throw ArtDepartmentV2Error.imageDataMissing\n        }\n        return try first.distance(to: second)', '        async let lhsObservation = GenerateImageFeaturePrintRequest().perform(on: lhs)\n        async let rhsObservation = GenerateImageFeaturePrintRequest().perform(on: rhs)\n        let (first, second) = try await (lhsObservation, rhsObservation)\n        return try first.distance(to: second)')
-          path.write_text(text)
+          apple.write_text(text)
+
+          persistence = Path('美术台/Services/ArtDepartmentV2Persistence.swift')
+          text = persistence.read_text()
+          text = text.replace('    private let fileManager = FileManager.default', '    private let fileManager: FileManager')
+          text = text.replace('    init() {\n        let support = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first\n            ?? fileManager.homeDirectoryForCurrentUser.appending(path: "Library/Application Support", directoryHint: .isDirectory)', '    init() {\n        let manager = FileManager.default\n        fileManager = manager\n        let support = manager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first\n            ?? manager.homeDirectoryForCurrentUser.appending(path: "Library/Application Support", directoryHint: .isDirectory)')
+          text = text.replace('private final class FinalDraftXMLDelegate', 'nonisolated private final class FinalDraftXMLDelegate')
+          text = text.replace('    static var artDepartment: JSONEncoder {', '    nonisolated static var artDepartment: JSONEncoder {')
+          text = text.replace('    static var artDepartment: JSONDecoder {', '    nonisolated static var artDepartment: JSONDecoder {')
+          persistence.write_text(text)
+
+          pipeline = Path('美术台/Services/ArtDepartmentV2Pipeline.swift')
+          text = pipeline.read_text().replace('progress: @Sendable (PipelineProgress) async -> Void', 'progress: @MainActor @Sendable (PipelineProgress) -> Void')
+          pipeline.write_text(text)
+
+          store = Path('美术台/Stores/ArtDepartmentV2Store.swift')
+          text = store.read_text().replace('progress: { [weak self] value in\n                    await MainActor.run { self?.progress = value }\n                }', 'progress: { [weak self] value in\n                    self?.progress = value\n                }')
+          store.write_text(text)
+
+          clients = Path('美术台/Services/ArtDepartmentV2Clients.swift')
+          text = clients.read_text()
+          text = text.replace('private struct ChatPayload', 'nonisolated private struct ChatPayload')
+          text = text.replace('private struct ChatResponse', 'nonisolated private struct ChatResponse')
+          text = text.replace('private struct ArkImageResponse', 'nonisolated private struct ArkImageResponse')
+          clients.write_text(text)
+
+          project = Path('美术台.xcodeproj/project.pbxproj')
+          text = project.read_text()
+          text = text.replace('MACOSX_DEPLOYMENT_TARGET = 27.0;', 'MACOSX_DEPLOYMENT_TARGET = 26.0;')
+          text = text.replace('TEST_HOST = "$(BUILT_PRODUCTS_DIR)/美术台.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/美术台";', 'TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AssetDesk.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/AssetDesk";')
+          project.write_text(text)
           PY
 
       - name: Build application without signing
@@ -66,7 +98,6 @@ jobs:
             -scheme '美术台' \
             -configuration Debug \
             -destination 'platform=macOS' \
-            MACOSX_DEPLOYMENT_TARGET=26.0 \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             build | tee /tmp/meishutai-build.log
@@ -80,7 +111,6 @@ jobs:
             -scheme '美术台' \
             -configuration Debug \
             -destination 'platform=macOS' \
-            MACOSX_DEPLOYMENT_TARGET=26.0 \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             test | tee /tmp/meishutai-tests.log
@@ -97,6 +127,7 @@ jobs:
             '美术台/Stores' \
             '美术台/Views' \
             '美术台Tests' \
+            '美术台.xcodeproj/project.pbxproj' \
             '.github/workflows/typecheck-apple-schema-v3.yml'
           git commit -m 'refactor: remove obsolete manual-review implementation'
           git push origin HEAD:feature/art-department-v2
