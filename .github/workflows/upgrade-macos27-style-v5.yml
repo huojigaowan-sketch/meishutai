@@ -53,7 +53,7 @@ jobs:
           grep -q 'SWIFT_VERSION = 6.0;' '美术台.xcodeproj/project.pbxproj'
           grep -q 'productionThreshold = 0.92' '美术台/Services/AssetReliabilityV4.swift'
 
-      - name: Build application without signing
+      - name: Build macOS 27 application without signing
         shell: bash
         run: |
           set -o pipefail
@@ -66,15 +66,19 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             build | tee /tmp/meishutai-v5-build.log
 
-      - name: Run unit tests without signing
+      - name: Run unit tests on hosted macOS 26 compatibility host
         shell: bash
         run: |
           set -o pipefail
+          # The hosted Xcode 27 image currently runs macOS 26.5.2. Override only
+          # the test build's runtime floor so pure unit tests can execute; the
+          # committed application target remains macOS 27.0 and is built above.
           xcodebuild \
             -project '美术台.xcodeproj' \
             -scheme '美术台' \
             -configuration Debug \
             -destination 'platform=macOS' \
+            MACOSX_DEPLOYMENT_TARGET=26.0 \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             test | tee /tmp/meishutai-v5-tests.log
