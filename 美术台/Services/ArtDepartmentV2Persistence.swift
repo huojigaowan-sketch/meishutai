@@ -1,3 +1,4 @@
+import AppKit
 import CryptoKit
 import Foundation
 
@@ -43,9 +44,11 @@ actor ArtDepartmentPersistence {
     private let fileManager: FileManager
     private let rootURL: URL
     private let legacyDocumentURL: URL
+    private let legacyVaultURL: URL
     private let vaultURL: URL
     private let backupsURL: URL
     private let styleImagesURL: URL
+    private let styleSamplesURL: URL
     private let generatedImagesURL: URL
 
     init() {
@@ -55,9 +58,11 @@ actor ArtDepartmentPersistence {
             ?? manager.homeDirectoryForCurrentUser.appending(path: "Library/Application Support", directoryHint: .isDirectory)
         rootURL = support.appending(path: "MeishutaiV2", directoryHint: .isDirectory)
         legacyDocumentURL = rootURL.appending(path: "workspace-v2.json")
-        vaultURL = rootURL.appending(path: "workspace-v4.vault")
+        legacyVaultURL = rootURL.appending(path: "workspace-v4.vault")
+        vaultURL = rootURL.appending(path: "workspace-v5.vault")
         backupsURL = rootURL.appending(path: "vault-backups", directoryHint: .isDirectory)
         styleImagesURL = rootURL.appending(path: "style-images", directoryHint: .isDirectory)
+        styleSamplesURL = rootURL.appending(path: "style-samples", directoryHint: .isDirectory)
         generatedImagesURL = rootURL.appending(path: "generated-images", directoryHint: .isDirectory)
     }
 
@@ -71,6 +76,11 @@ actor ArtDepartmentPersistence {
             let encrypted = try Data(contentsOf: vaultURL)
             let plaintext = try StyleLibraryVault.open(encrypted, using: key)
             document = try JSONDecoder.artDepartment.decode(ArtDepartmentWorkspaceDocument.self, from: plaintext)
+        } else if fileManager.fileExists(atPath: legacyVaultURL.path) {
+            let encrypted = try Data(contentsOf: legacyVaultURL)
+            let plaintext = try StyleLibraryVault.open(encrypted, using: key)
+            document = try JSONDecoder.artDepartment.decode(ArtDepartmentWorkspaceDocument.self, from: plaintext)
+            shouldPersistMigration = true
         } else if fileManager.fileExists(atPath: legacyDocumentURL.path) {
             document = try JSONDecoder.artDepartment.decode(
                 ArtDepartmentWorkspaceDocument.self,
@@ -81,17 +91,14 @@ actor ArtDepartmentPersistence {
             document = .empty
         }
 
-        let knownBuiltIns = Set(document.styleCards.filter(\.isBuiltIn).map(\.id))
-        let missingBuiltIns = BuiltInStylePromptCatalog.cards.filter { !knownBuiltIns.contains($0.id) }
-        if !missingBuiltIns.isEmpty {
-            document.styleCards.append(contentsOf: missingBuiltIns)
+        if mergePinnedBuiltIns(into: &document) {
             shouldPersistMigration = true
         }
 
         if try migratePlaintextStyleImages(in: &document, using: key) {
             shouldPersistMigration = true
         }
-        document.schemaVersion = max(4, document.schemaVersion)
+        document.schemaVersion = max(5, document.schemaVersion)
 
         if shouldPersistMigration {
             try save(document)
@@ -102,7 +109,7 @@ actor ArtDepartmentPersistence {
     func save(_ document: ArtDepartmentWorkspaceDocument) throws {
         try prepareDirectories()
         var document = document
-        document.schemaVersion = max(4, document.schemaVersion)
+        document.schemaVersion = max(5, document.schemaVersion)
         document.updatedAt = .now
         let plaintext = try JSONEncoder.artDepartment.encode(document)
         let encrypted = try StyleLibraryVault.seal(plaintext, using: vaultKey())
@@ -121,6 +128,58 @@ actor ArtDepartmentPersistence {
         let encrypted = try StyleLibraryVault.seal(plaintext, using: vaultKey())
         try writeProtected(encrypted, to: destination)
         return relative
+    }
+
+    func importStyleSample(
+        data: Data,
+        cardID: UUID,
+        sampleID: UUID
+    ) throws -> PersistedStyleSamplePayload {
+        try prepareDirectories()
+        try StyleSampleValidator.validate(data)
+        let folder = styleSamplesURL.appending(path: cardID.uuidString, directoryHint: .isDirectory)
+        try createProtectedDirectory(folder)
+        let relative = "style-samples/\(cardID.uuidString)/\(sampleID.uuidString).vault"
+        let destination = rootURL.appending(path: relative)
+        let encrypted = try StyleLibraryVault.seal(data, using: vaultKey())
+        try writeProtected(encrypted, to: destination)
+        return PersistedStyleSamplePayload(
+            path: relative,
+            sha256: StyleSampleValidator.sha256(data),
+            data: data
+        )
+    }
+
+    func cacheRemoteStyleSample(
+        from sourceURL: URL,
+        cardID: UUID,
+        sampleID: UUID
+    ) async throws -> PersistedStyleSamplePayload {
+        guard sourceURL.scheme?.lowercased() == "https" else {
+            throw ArtDepartmentV2Error.remoteSampleUnavailable
+        }
+        var request = URLRequest(
+            url: sourceURL,
+            cachePolicy: .reloadIgnoringLocalCacheData,
+            timeoutInterval: 90
+        )
+        request.setValue("image/*", forHTTPHeaderField: "Accept")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse,
+              (200..<300).contains(http.statusCode),
+              data.count <= StyleSampleValidator.maximumBytes
+        else { throw ArtDepartmentV2Error.remoteSampleUnavailable }
+        try StyleSampleValidator.validate(data)
+        return try importStyleSample(data: data, cardID: cardID, sampleID: sampleID)
+    }
+
+    func deleteStyleMedia(at relativePath: String?) throws {
+        guard let relativePath,
+              (relativePath.hasPrefix("style-samples/") || relativePath.hasPrefix("style-images/")),
+              let url = absoluteURL(for: relativePath),
+              fileManager.fileExists(atPath: url.path)
+        else { return }
+        try fileManager.removeItem(at: url)
     }
 
     func saveGeneratedImage(
@@ -164,10 +223,46 @@ actor ArtDepartmentPersistence {
               fileManager.fileExists(atPath: url.path)
         else { return nil }
         let data = try Data(contentsOf: url)
-        if relativePath.hasPrefix("style-images/") && url.pathExtension == "vault" {
+        if (relativePath.hasPrefix("style-images/") || relativePath.hasPrefix("style-samples/")) && url.pathExtension == "vault" {
             return try StyleLibraryVault.open(data, using: vaultKey())
         }
         return data
+    }
+
+    private func mergePinnedBuiltIns(
+        into document: inout ArtDepartmentWorkspaceDocument
+    ) -> Bool {
+        var changed = false
+        let pinned = Dictionary(uniqueKeysWithValues: BuiltInStylePromptCatalog.cards.map { ($0.id, $0) })
+        let originalCount = document.styleCards.count
+        document.styleCards.removeAll { card in
+            card.isBuiltIn && pinned[card.id] == nil
+        }
+        changed = changed || originalCount != document.styleCards.count
+
+        for pinnedCard in BuiltInStylePromptCatalog.cards {
+            if let index = document.styleCards.firstIndex(where: { $0.id == pinnedCard.id }) {
+                let cached = Dictionary(uniqueKeysWithValues: document.styleCards[index].styleSampleMedia.map {
+                    ($0.id, $0)
+                })
+                var updated = pinnedCard
+                updated.sampleMedia = pinnedCard.styleSampleMedia.map { sample in
+                    guard let existing = cached[sample.id] else { return sample }
+                    var merged = sample
+                    merged.encryptedLocalPath = existing.encryptedLocalPath
+                    merged.sha256 = existing.sha256
+                    return merged
+                }
+                if document.styleCards[index] != updated {
+                    document.styleCards[index] = updated
+                    changed = true
+                }
+            } else {
+                document.styleCards.append(pinnedCard)
+                changed = true
+            }
+        }
+        return changed
     }
 
     private func migratePlaintextStyleImages(
@@ -230,6 +325,7 @@ actor ArtDepartmentPersistence {
         try createProtectedDirectory(rootURL)
         try createProtectedDirectory(backupsURL)
         try createProtectedDirectory(styleImagesURL)
+        try createProtectedDirectory(styleSamplesURL)
         try createProtectedDirectory(generatedImagesURL)
     }
 

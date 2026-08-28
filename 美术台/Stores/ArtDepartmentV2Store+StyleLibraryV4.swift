@@ -125,13 +125,13 @@ extension ArtDepartmentV2Store {
             category: category,
             tags: tags,
             notes: notes,
-            isPromptLocked: false,
             parentID: parentID,
             lifecycleRawValue: (publish ? StylePromptLifecycle.library : .experiment).rawValue,
             branchLabel: parentID == nil ? "根风格" : "变化分支",
             branchOrder: nextBranchOrder(parentID: parentID),
             revisionNumber: 1,
-            sampleMedia: []
+            sampleMedia: [],
+            isPromptLocked: false
         )
         do {
             for url in imageURLs {
@@ -278,7 +278,7 @@ extension ArtDepartmentV2Store {
             else { return }
             document.styleCards[index].prompt = ""
             document.styleCards[index].updatedAt = .now
-            Task { await persist() }
+            scheduleExternalDraftPersist()
             return
         }
         let title = externalStyleTitle.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -297,16 +297,16 @@ extension ArtDepartmentV2Store {
                 category: externalStyleCategory,
                 tags: ["自动保存", "外部实验"],
                 notes: "输入即持久化；测试结果会自动成为加密样板。",
-                isPromptLocked: false,
                 lifecycleRawValue: StylePromptLifecycle.experiment.rawValue,
                 branchLabel: "外部实验",
                 revisionNumber: 1,
-                sampleMedia: []
+                sampleMedia: [],
+                isPromptLocked: false
             )
             document.styleCards.insert(card, at: 0)
             activeExternalStyleDraftID = card.id
         }
-        Task { await persist() }
+        scheduleExternalDraftPersist()
     }
 
     func restoreExternalStyleDraft() {
@@ -416,6 +416,15 @@ extension ArtDepartmentV2Store {
         }
         guard let best, best.1 < 0.035 else { return nil }
         return best.0
+    }
+
+    private func scheduleExternalDraftPersist() {
+        externalDraftSaveTask?.cancel()
+        externalDraftSaveTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            await self?.persist()
+        }
     }
 
     private func nextBranchOrder(parentID: UUID?) -> Int {

@@ -117,10 +117,15 @@ actor AssetReliabilityModelEngine {
         let response = try await session.respond(
             to: prompt,
             generating: AppleSchemaAssetVerdictBatch.self,
-            options: GenerationOptions(sampling: .greedy)
+            options: GenerationOptions(samplingMode: .greedy)
         )
-        let tokens = session.usage.totalTokenCount
-        logger.debug("Reliability adjudication used \(tokens, privacy: .public) tokens")
+        let tokens: Int
+        if #available(macOS 27.0, *) {
+            tokens = session.usage.totalTokenCount
+            logger.debug("Reliability adjudication used \(tokens, privacy: .public) tokens")
+        } else {
+            tokens = 0
+        }
         return .init(
             engine: "Apple Foundation Models independent reliability gate",
             batch: response.content,

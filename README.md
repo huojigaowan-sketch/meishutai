@@ -1,4 +1,4 @@
-# 美术台 3.0 · Apple 自动美术资产流水线
+# 美术台 5.0 · Apple 自动美术资产流水线
 
 美术台是一套面向影视美术部门的 macOS 原生工作台。3.0 不再把低置信度结果交给人逐项确认，而是把准确性做成自动化系统属性：任意剧本先转为标准 Final Draft/Fountain，再由 Apple Foundation Models、content tagging、Natural Language、Vision、确定性解析器和可选远程模型共同完成场景、人物、道具的提取、核验、隔离和生产入库。
 
@@ -104,3 +104,20 @@ Apple Foundation Models 的 `Generable` 类型会转换为 JSON schema。应用�
 7. 隔离候选不会进入资产 JSON、生图选择或生产统计；
 8. 风格参考图 Vision 查重和持久化；
 9. Ark 文生图、参考图生图、批量结果和错误恢复。
+
+
+## 风格分支树与完整样板
+
+- 56 张固定 MIT 提示词卡全部带上游 `sourceMedia` 完整样板；首次显示后以 AES-GCM 加密缓存。
+- 正式根风格必须有样板；实验分支会自动持久化，并在第一次生成后自动把结果保存为加密样板。
+- 每个节点只保存相对父节点增加的变化，最终提示词按根 → 子 → 孙动态组合。
+- 用户可以新增、编辑、归档、恢复、删除整棵用户分支树；内置模板只能建立分支，不能被篡改。
+- 风格选择始终由用户完成，系统不会自动匹配或代选。
+
+## 资产可靠性 V4
+
+场景、人物、道具经过 Final Draft 确定性元素、第一遍高召回提取、第二遍独立 Apple GenerationSchema 裁决、逐字证据复核、保守身份归并、跨场支持和连续性评分。非确定性资产必须达到 92% 生产阈值；语义相似名称不再自动合并，宁可隔离重复项，也不错误合并不同资产。
+
+## macOS 27
+
+工程部署目标为 macOS 27，使用 Xcode 27 / Swift 6、Foundation Models 的最新系统模型、`LanguageModelSession.usage`、Vision Swift API、Natural Language、Observation、CryptoKit 与 Keychain。

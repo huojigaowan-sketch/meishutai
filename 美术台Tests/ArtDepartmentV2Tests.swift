@@ -58,7 +58,7 @@ final class ArtDepartmentV2Tests: XCTestCase {
     }
 
     func testBuiltInStyleTemplatesContainRequestedOperations() {
-        let prompts = BuiltInStylePromptCatalog.cards.map(\.prompt).joined(separator: "\n")
+        let prompts = BuiltInStylePromptCatalog.projectCards.map(\.prompt).joined(separator: "\n")
         XCTAssertTrue(prompts.contains("十个"))
         XCTAssertTrue(prompts.contains("AO 白模"))
         XCTAssertTrue(prompts.contains("减少约 30%"))
@@ -163,9 +163,90 @@ final class ArtDepartmentV2Tests: XCTestCase {
         XCTAssertThrowsError(try StyleLibraryVault.open(tampered, using: key))
     }
 
-    func testWorkspaceSchemaIsAutomaticV4() {
-        XCTAssertEqual(ArtDepartmentWorkspaceDocument.empty.schemaVersion, 4)
+    func testWorkspaceSchemaIsAutomaticV5() {
+        XCTAssertEqual(ArtDepartmentWorkspaceDocument.empty.schemaVersion, 5)
         XCTAssertEqual(ArtWorkspaceSection.assets.rawValue, "自动资产库")
         XCTAssertEqual(ScriptPipelineStage.completed.title, "资产已就绪")
+    }
+
+    func testEveryImportedStyleHasACompleteSample() {
+        let cards = ImportedStylePromptCatalog.cards
+        XCTAssertEqual(cards.count, 56)
+        XCTAssertTrue(cards.allSatisfy { !$0.styleSampleMedia.isEmpty })
+        XCTAssertTrue(cards.flatMap(\.styleSampleMedia).allSatisfy {
+            guard let raw = $0.remoteURLString, let url = URL(string: raw) else { return false }
+            return url.scheme == "https"
+        })
+    }
+
+    func testStylePromptBranchesResolveIncrementally() {
+        let root = StylePromptCard(
+            id: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!,
+            title: "电影写实",
+            prompt: "电影写实，真实材质",
+            category: .general,
+            sampleMedia: [StyleSampleMedia(remoteURLString: "https://example.com/root.jpg")]
+        )
+        let child = StylePromptCard(
+            id: UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")!,
+            title: "冷月光",
+            prompt: "改为低照度冷月光",
+            category: .scene,
+            parentID: root.id,
+            lifecycleRawValue: StylePromptLifecycle.library.rawValue
+        )
+        let grandchild = StylePromptCard(
+            id: UUID(uuidString: "CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC")!,
+            title: "潮湿地面",
+            prompt: "增加潮湿地面反射",
+            category: .scene,
+            parentID: child.id,
+            lifecycleRawValue: StylePromptLifecycle.library.rawValue
+        )
+        let cards = [root, child, grandchild]
+        let resolved = StylePromptResolver.resolvedPrompt(for: grandchild.id, in: cards)
+        XCTAssertTrue(resolved.contains("电影写实"))
+        XCTAssertTrue(resolved.contains("冷月光"))
+        XCTAssertTrue(resolved.contains("潮湿地面"))
+        XCTAssertEqual(
+            StylePromptResolver.resolvedSamples(for: grandchild.id, in: cards).count,
+            1
+        )
+        XCTAssertFalse(StylePromptResolver.hasCycle(
+            parentID: root.id,
+            cardID: grandchild.id,
+            cards: cards
+        ))
+        XCTAssertTrue(StylePromptResolver.hasCycle(
+            parentID: grandchild.id,
+            cardID: root.id,
+            cards: cards
+        ))
+    }
+
+    func testReliabilityV4RequiresIndependentEvidenceForNonDeterministicAssets() {
+        let weak = AssetConfidenceBreakdown(
+            deterministicEvidence: 0,
+            exactQuoteCoverage: 1,
+            independentAgreement: 0,
+            crossSceneSupport: 1,
+            identityStability: 1,
+            continuityConsistency: 1,
+            schemaCompleteness: 1,
+            modelCalibration: 1
+        )
+        XCTAssertLessThan(weak.weightedScore, AssetReliabilityV4.productionThreshold)
+
+        let strong = AssetConfidenceBreakdown(
+            deterministicEvidence: 0,
+            exactQuoteCoverage: 1,
+            independentAgreement: 1,
+            crossSceneSupport: 1,
+            identityStability: 1,
+            continuityConsistency: 1,
+            schemaCompleteness: 1,
+            modelCalibration: 1
+        )
+        XCTAssertGreaterThanOrEqual(strong.weightedScore, AssetReliabilityV4.productionThreshold)
     }
 }

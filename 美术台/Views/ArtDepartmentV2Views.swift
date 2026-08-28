@@ -6,7 +6,6 @@ struct ArtDepartmentV2RootView: View {
     @Bindable var store: ArtDepartmentV2Store
 
     @State private var isImportingScript = false
-    @State private var isAddingStyle = false
     @State private var isImportingGenerationReference = false
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
@@ -55,9 +54,6 @@ struct ArtDepartmentV2RootView: View {
         ) { result in
             guard let url = try? result.get().first else { return }
             Task { await store.importGenerationReference(url) }
-        }
-        .sheet(isPresented: $isAddingStyle) {
-            StyleCardEditorView(store: store) { isAddingStyle = false }
         }
         .sheet(isPresented: $store.showsDiagnostics) {
             AutomationDiagnosticsView(store: store)
@@ -161,10 +157,7 @@ struct ArtDepartmentV2RootView: View {
             case .assets:
                 AutomaticAssetLibraryWorkspace(store: store)
             case .styles:
-                StyleVaultWorkspace(
-                    store: store,
-                    onAdd: { isAddingStyle = true }
-                )
+                StyleLibraryWorkspaceV4(store: store)
             case .generation:
                 GenerationStudioWorkspace(
                     store: store,
@@ -436,6 +429,11 @@ private struct AutomaticAssetLibraryWorkspace: View {
                 if let summary = store.currentProject?.automationSummary {
                     Text("自动通过 \(summary.usableCount) 项 · 隔离 \(summary.quarantinedCount) 项 · 无需人工审阅")
                         .foregroundStyle(.secondary)
+                    if let audit = store.currentProject?.reliabilityAudit {
+                        Text("V4 生产阈值 \(audit.productionThreshold, format: .percent.precision(.fractionLength(0))) · 独立裁决 \(audit.independentlyVerifiedCount) 项 · 逐字证据拒绝 \(audit.exactEvidenceRejectedCount) 项")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 } else {
                     Text("只有通过逐字证据、Apple Schema、多引擎共识与语言学校验的结果进入生产库。")
                         .foregroundStyle(.secondary)
@@ -637,194 +635,7 @@ private struct AutomationDiagnosticsView: View {
     }
 }
 
-// MARK: - Style prompt vault
-
-private struct StyleVaultWorkspace: View {
-    @Bindable var store: ArtDepartmentV2Store
-    let onAdd: () -> Void
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("风格提示词库")
-                        .font(.system(.largeTitle, design: .rounded, weight: .bold))
-                    Text("用户决定并选择风格；自建卡片与参考图采用 Keychain 密钥和 AES-GCM 加密，Apple Vision 仅在本机查重。")
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Button("添加风格卡", systemImage: "plus", action: onAdd)
-                    .buttonStyle(.borderedProminent)
-            }
-            .padding(22)
-            Divider()
-
-            ScrollView {
-                LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: 300, maximum: 390), spacing: 14)],
-                    spacing: 14
-                ) {
-                    ForEach(store.styleCards) { card in
-                        StyleCardView(
-                            card: card,
-                            image: store.styleImage(for: card.referenceImagePath),
-                            selected: store.selectedStyleCardIDs.contains(card.id)
-                        ) {
-                            store.toggleStyleSelection(card.id)
-                        } onDelete: {
-                            store.deleteStyleCard(card.id)
-                        }
-                    }
-                }
-                .padding(22)
-            }
-        }
-    }
-}
-
-private struct StyleCardView: View {
-    let card: StylePromptCard
-    let image: NSImage?
-    let selected: Bool
-    let onSelect: () -> Void
-    let onDelete: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(0.04))
-                if let image {
-                    Image(nsImage: image).resizable().scaledToFill()
-                } else {
-                    Image(systemName: card.category == .camera ? "camera.viewfinder" : "photo")
-                        .font(.system(size: 34))
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .frame(height: 150)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(card.title).font(.headline)
-                    Text(card.category.rawValue).font(.caption).foregroundStyle(.secondary)
-                }
-                Spacer()
-                if selected {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                }
-                if card.isBuiltIn {
-                    Text("模板")
-                        .font(.caption2.weight(.bold))
-                        .padding(5)
-                        .background(.blue.opacity(0.1), in: Capsule())
-                }
-            }
-
-            Text(card.prompt)
-                .font(.callout)
-                .lineLimit(6)
-                .textSelection(.enabled)
-            HStack {
-                Button(
-                    selected ? "已用于生图" : "用于生图",
-                    systemImage: selected ? "checkmark.circle.fill" : "circle",
-                    action: onSelect
-                )
-                Spacer()
-                if !card.isBuiltIn {
-                    Button(role: .destructive, action: onDelete) {
-                        Image(systemName: "trash")
-                    }
-                }
-            }
-            .buttonStyle(.borderless)
-        }
-        .padding(14)
-        .background(.background, in: RoundedRectangle(cornerRadius: 16))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(selected ? Color.green.opacity(0.65) : Color.primary.opacity(0.08), lineWidth: selected ? 2 : 1)
-        }
-    }
-}
-
-private struct StyleCardEditorView: View {
-    @Bindable var store: ArtDepartmentV2Store
-    let onClose: () -> Void
-
-    @State private var title = ""
-    @State private var prompt = ""
-    @State private var category: StylePromptCategory = .general
-    @State private var tags = ""
-    @State private var notes = ""
-    @State private var imageURL: URL?
-    @State private var isPickingImage = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("添加风格提示词卡").font(.title2.weight(.bold))
-            Text("提示词由用户提供并锁定；参考图会加密保存，并由 Apple Vision 建立本地相似度签名。")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-            TextField("标题", text: $title)
-            Picker("分类", selection: $category) {
-                ForEach(StylePromptCategory.allCases) { value in
-                    Text(value.rawValue).tag(value)
-                }
-            }
-            TextEditor(text: $prompt)
-                .frame(minHeight: 170)
-                .overlay(alignment: .topLeading) {
-                    if prompt.isEmpty {
-                        Text("粘贴精确风格提示词")
-                            .foregroundStyle(.tertiary)
-                            .padding(7)
-                            .allowsHitTesting(false)
-                    }
-                }
-            TextField("标签，以逗号分隔", text: $tags)
-            TextField("备注", text: $notes)
-            HStack {
-                Button("选择参考图", systemImage: "photo.badge.plus") {
-                    isPickingImage = true
-                }
-                if let imageURL { Text(imageURL.lastPathComponent).foregroundStyle(.secondary) }
-                Spacer()
-                Button("取消", action: onClose)
-                Button("保存") {
-                    Task {
-                        await store.addStyleCard(
-                            title: title,
-                            prompt: prompt,
-                            category: category,
-                            tags: tags.split(separator: ",").map {
-                                $0.trimmingCharacters(in: .whitespacesAndNewlines)
-                            },
-                            notes: notes,
-                            imageURL: imageURL
-                        )
-                        onClose()
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(
-                    title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        || prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                )
-            }
-        }
-        .padding(22)
-        .frame(width: 620, height: 580)
-        .fileImporter(
-            isPresented: $isPickingImage,
-            allowedContentTypes: [.image],
-            allowsMultipleSelection: false
-        ) { result in
-            imageURL = try? result.get().first
-        }
-    }
-}
+// MARK: - Style library lives in StyleLibraryV4Views.swift
 
 // MARK: - Generation studio
 
@@ -898,7 +709,7 @@ private struct GenerationStudioWorkspace: View {
 
             Text("风格来源（必须由用户决定）").font(.headline)
             Menu {
-                ForEach(store.styleCards) { card in
+                ForEach(store.styleCards.filter { !$0.isArchived }) { card in
                     Button {
                         store.toggleStyleSelection(card.id)
                     } label: {
@@ -927,12 +738,18 @@ private struct GenerationStudioWorkspace: View {
             Divider()
             Text("本轮外部风格").font(.headline)
             TextField("名称（可选）", text: $store.externalStyleTitle)
+                .onChange(of: store.externalStyleTitle) { _, _ in
+                    store.persistExternalStyleDraft()
+                }
             Picker("分类", selection: $store.externalStyleCategory) {
                 ForEach(StylePromptCategory.allCases) { category in
                     Text(category.rawValue).tag(category)
                 }
             }
             .pickerStyle(.menu)
+            .onChange(of: store.externalStyleCategory) { _, _ in
+                store.persistExternalStyleDraft()
+            }
             TextEditor(text: $store.externalStylePrompt)
                 .frame(minHeight: 82)
                 .padding(7)
@@ -946,9 +763,13 @@ private struct GenerationStudioWorkspace: View {
                             .allowsHitTesting(false)
                     }
                 }
-            Button("测试后存入风格图书馆", systemImage: "lock.doc") {
+                .onChange(of: store.externalStylePrompt) { _, _ in
+                    store.persistExternalStyleDraft()
+                }
+            Button("发布到风格图书馆", systemImage: "lock.doc") {
                 store.saveExternalStyleToLibrary()
             }
+            .help("外部实验已经自动持久化；发布前必须至少完成一次生成或上传样板。")
             .disabled(store.externalStylePrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
             if !store.hasExplicitStyleSelection {

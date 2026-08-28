@@ -212,6 +212,59 @@ nonisolated struct AssetVerificationReport: Codable, Hashable, Sendable {
     }
 }
 
+nonisolated struct AssetConfidenceBreakdown: Codable, Hashable, Sendable {
+    var deterministicEvidence: Double
+    var exactQuoteCoverage: Double
+    var independentAgreement: Double
+    var crossSceneSupport: Double
+    var identityStability: Double
+    var continuityConsistency: Double
+    var schemaCompleteness: Double
+    var modelCalibration: Double
+
+    var weightedScore: Double {
+        let values = [
+            deterministicEvidence,
+            exactQuoteCoverage,
+            independentAgreement,
+            crossSceneSupport,
+            identityStability,
+            continuityConsistency,
+            schemaCompleteness,
+            modelCalibration,
+        ].map { min(1, max(0, $0)) }
+        let raw = values[0] * 0.18
+            + values[1] * 0.22
+            + values[2] * 0.18
+            + values[3] * 0.10
+            + values[4] * 0.10
+            + values[5] * 0.08
+            + values[6] * 0.07
+            + values[7] * 0.07
+        // A non-deterministic candidate cannot earn the format-evidence share.
+        // Normalize against the maximum available evidence path so a fully
+        // corroborated prop or non-speaking character can still reach 100%.
+        let availableMaximum = values[0] >= 0.999 ? 1.0 : 0.82
+        return min(1, raw / availableMaximum)
+    }
+}
+
+nonisolated struct AssetReliabilityAudit: Codable, Hashable, Sendable {
+    var version: Int
+    var sceneCount: Int
+    var candidateCount: Int
+    var productionCount: Int
+    var quarantinedCount: Int
+    var deterministicCount: Int
+    var independentlyVerifiedCount: Int
+    var exactEvidenceRejectedCount: Int
+    var preventedSemanticMergeCount: Int
+    var productionThreshold: Double
+    var engineNames: [String]
+    var elapsedMilliseconds: Int
+    var completedAt: Date
+}
+
 nonisolated struct AssetAutomationSummary: Codable, Hashable, Sendable {
     var sceneCount: Int
     var characterCount: Int
@@ -252,6 +305,10 @@ nonisolated struct ProductionAsset: Codable, Hashable, Identifiable, Sendable {
     var firstSceneOrder: Int
     var occurrenceCount: Int
     var verificationReport: AssetVerificationReport?
+    var confidenceBreakdown: AssetConfidenceBreakdown?
+    var independentVerdictCount: Int?
+    var identityFingerprint: String?
+    var continuityVariantKey: String?
 
     init(
         id: UUID = UUID(),
@@ -271,7 +328,11 @@ nonisolated struct ProductionAsset: Codable, Hashable, Identifiable, Sendable {
         warnings: [String] = [],
         firstSceneOrder: Int,
         occurrenceCount: Int = 1,
-        verificationReport: AssetVerificationReport? = nil
+        verificationReport: AssetVerificationReport? = nil,
+        confidenceBreakdown: AssetConfidenceBreakdown? = nil,
+        independentVerdictCount: Int? = nil,
+        identityFingerprint: String? = nil,
+        continuityVariantKey: String? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -291,6 +352,10 @@ nonisolated struct ProductionAsset: Codable, Hashable, Identifiable, Sendable {
         self.firstSceneOrder = firstSceneOrder
         self.occurrenceCount = occurrenceCount
         self.verificationReport = verificationReport
+        self.confidenceBreakdown = confidenceBreakdown
+        self.independentVerdictCount = independentVerdictCount
+        self.identityFingerprint = identityFingerprint
+        self.continuityVariantKey = continuityVariantKey
     }
 
     var isUsable: Bool {
@@ -337,6 +402,13 @@ nonisolated struct StylePromptCard: Codable, Hashable, Identifiable, Sendable {
     var tags: [String]
     var notes: String
     var referenceImagePath: String?
+    var parentID: UUID?
+    var lifecycleRawValue: String?
+    var branchLabel: String?
+    var branchOrder: Int?
+    var revisionNumber: Int?
+    var archivedAt: Date?
+    var sampleMedia: [StyleSampleMedia]?
     var isPromptLocked: Bool
     var isBuiltIn: Bool
     var createdAt: Date
@@ -353,6 +425,13 @@ nonisolated struct StylePromptCard: Codable, Hashable, Identifiable, Sendable {
         tags: [String] = [],
         notes: String = "",
         referenceImagePath: String? = nil,
+        parentID: UUID? = nil,
+        lifecycleRawValue: String? = nil,
+        branchLabel: String? = nil,
+        branchOrder: Int? = nil,
+        revisionNumber: Int? = nil,
+        archivedAt: Date? = nil,
+        sampleMedia: [StyleSampleMedia]? = nil,
         isPromptLocked: Bool = true,
         isBuiltIn: Bool = false,
         createdAt: Date = .now,
@@ -368,6 +447,13 @@ nonisolated struct StylePromptCard: Codable, Hashable, Identifiable, Sendable {
         self.tags = tags
         self.notes = notes
         self.referenceImagePath = referenceImagePath
+        self.parentID = parentID
+        self.lifecycleRawValue = lifecycleRawValue
+        self.branchLabel = branchLabel
+        self.branchOrder = branchOrder
+        self.revisionNumber = revisionNumber
+        self.archivedAt = archivedAt
+        self.sampleMedia = sampleMedia
         self.isPromptLocked = isPromptLocked
         self.isBuiltIn = isBuiltIn
         self.createdAt = createdAt
@@ -485,6 +571,7 @@ nonisolated struct ArtDepartmentProject: Codable, Hashable, Identifiable, Sendab
     var updatedAt: Date
     var automationSummary: AssetAutomationSummary?
     var engineStatus: AppleEngineStatusSnapshot?
+    var reliabilityAudit: AssetReliabilityAudit?
 
     init(
         id: UUID = UUID(),
@@ -501,7 +588,8 @@ nonisolated struct ArtDepartmentProject: Codable, Hashable, Identifiable, Sendab
         createdAt: Date = .now,
         updatedAt: Date = .now,
         automationSummary: AssetAutomationSummary? = nil,
-        engineStatus: AppleEngineStatusSnapshot? = nil
+        engineStatus: AppleEngineStatusSnapshot? = nil,
+        reliabilityAudit: AssetReliabilityAudit? = nil
     ) {
         self.id = id
         self.title = title
@@ -518,6 +606,7 @@ nonisolated struct ArtDepartmentProject: Codable, Hashable, Identifiable, Sendab
         self.updatedAt = updatedAt
         self.automationSummary = automationSummary
         self.engineStatus = engineStatus
+        self.reliabilityAudit = reliabilityAudit
     }
 
     var usableAssets: [ProductionAsset] { assets.filter(\.isUsable) }
@@ -531,7 +620,7 @@ nonisolated struct ArtDepartmentWorkspaceDocument: Codable, Hashable, Sendable {
     var updatedAt: Date
 
     static let empty = ArtDepartmentWorkspaceDocument(
-        schemaVersion: 4,
+        schemaVersion: 5,
         projects: [],
         styleCards: BuiltInStylePromptCatalog.cards,
         updatedAt: .now
@@ -552,6 +641,10 @@ nonisolated enum ArtDepartmentV2Error: LocalizedError {
     case noUsableAssets
     case imageDataMissing
     case unsupportedFile
+    case styleSampleRequired
+    case cannotModifyBuiltIn
+    case styleBranchCycle
+    case remoteSampleUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -568,6 +661,10 @@ nonisolated enum ArtDepartmentV2Error: LocalizedError {
         case .noUsableAssets: "自动核验没有找到具有逐字证据的可用资产。"
         case .imageDataMissing: "参考图或生成结果的图像数据不存在。"
         case .unsupportedFile: "当前文件格式不受支持。请使用 TXT、Markdown、Fountain、FDX、PDF 或图片。"
+        case .styleSampleRequired: "正式风格节点必须至少有一张完整样板图；实验分支可以先保存再测试。"
+        case .cannotModifyBuiltIn: "内置开源模板不可直接修改或删除，请在它下面建立可编辑分支。"
+        case .styleBranchCycle: "风格分支不能把自身或后代设为父节点。"
+        case .remoteSampleUnavailable: "上游样板图暂时不可用，可稍后重试或为分支上传本地样板。"
         }
     }
 }
