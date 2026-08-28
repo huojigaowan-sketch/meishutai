@@ -5,6 +5,8 @@ on:
     branches: [feature/art-department-v2]
     paths:
       - .github/workflows/typecheck-apple-schema-v3.yml
+      - '美术台/**'
+      - '美术台Tests/**'
 
 permissions:
   contents: write
@@ -33,6 +35,7 @@ jobs:
             -scheme '美术台' \
             -configuration Debug \
             -destination 'platform=macOS' \
+            MACOSX_DEPLOYMENT_TARGET=26.0 \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             build | tee /tmp/meishutai-build.log
@@ -46,6 +49,7 @@ jobs:
             -scheme '美术台' \
             -configuration Debug \
             -destination 'platform=macOS' \
+            MACOSX_DEPLOYMENT_TARGET=26.0 \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             test | tee /tmp/meishutai-tests.log
