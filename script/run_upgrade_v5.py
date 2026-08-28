@@ -209,6 +209,41 @@ def post_patch_generated_sources() -> None:
         )
         upgrade_v5.write(path, source)
 
+    # LanguageModelSession usage accounting is a macOS 27 API. Keep it in the
+    # shipping target while allowing pure unit tests to compile on the hosted
+    # macOS 26 compatibility host used by the Xcode 27 runner.
+    apple_path = "美术台/Services/AppleStructuredExtractionEngine.swift"
+    apple = upgrade_v5.read(apple_path)
+    old_apple_usage = '''        logger.debug("Structured generation used \\(response.usage.totalTokenCount, privacy: .public) tokens")
+'''
+    new_apple_usage = '''        if #available(macOS 27.0, *) {
+            logger.debug("Structured generation used \\(response.usage.totalTokenCount, privacy: .public) tokens")
+        }
+'''
+    if old_apple_usage not in apple:
+        raise RuntimeError("Apple usage logging anchor missing")
+    upgrade_v5.write(apple_path, apple.replace(old_apple_usage, new_apple_usage, 1))
+
+    reliability_path = "美术台/Services/AssetReliabilityV4.swift"
+    reliability = upgrade_v5.read(reliability_path)
+    old_reliability_usage = '''        let tokens = session.usage.totalTokenCount
+        logger.debug("Reliability adjudication used \\(tokens, privacy: .public) tokens")
+'''
+    new_reliability_usage = '''        let tokens: Int
+        if #available(macOS 27.0, *) {
+            tokens = session.usage.totalTokenCount
+            logger.debug("Reliability adjudication used \\(tokens, privacy: .public) tokens")
+        } else {
+            tokens = 0
+        }
+'''
+    if old_reliability_usage not in reliability:
+        raise RuntimeError("Reliability usage logging anchor missing")
+    upgrade_v5.write(
+        reliability_path,
+        reliability.replace(old_reliability_usage, new_reliability_usage, 1),
+    )
+
 
 upgrade_v5.patch_catalog = robust_patch_catalog
 upgrade_v5.main()
