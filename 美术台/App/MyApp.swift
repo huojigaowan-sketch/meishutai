@@ -2,37 +2,30 @@ import SwiftUI
 
 @main
 struct MyApp: App {
-    @State private var store = WorkspaceStore()
+    @State private var store = ArtDepartmentV2Store()
 
     var body: some Scene {
-        WindowGroup("资产台") {
-            rootContent
-                .frame(width: 1360, height: 860)
+        WindowGroup("美术台") {
+            ContentView(store: store)
+                .frame(minWidth: 1_120, minHeight: 720)
         }
-        .defaultSize(width: 1360, height: 860)
-        .windowResizability(.contentSize)
+        .defaultSize(width: 1_440, height: 920)
         .commands {
             CommandMenu("项目") {
-                Button("新建项目") {
-                    store.addProject()
-                }
-                .keyboardShortcut("n", modifiers: [.command, .shift])
-                .disabled(store.isAnalyzing)
-
-                Button("新建分集") {
-                    store.addEpisode()
-                }
-                .keyboardShortcut("n", modifiers: [.command, .option])
-                .disabled(store.isAnalyzing)
+                Button("新建美术项目") { store.addProject() }
+                    .keyboardShortcut("n", modifiers: [.command, .shift])
+                Divider()
+                Button("剧本标准化") { Task { await store.normalizeCurrentScript() } }
+                    .keyboardShortcut("f", modifiers: [.command, .shift])
+                    .disabled(store.isWorking)
+                Button("提取场景人物道具") { Task { await store.extractCurrentAssets() } }
+                    .keyboardShortcut("e", modifiers: [.command, .shift])
+                    .disabled(store.isWorking)
             }
         }
 
         Settings {
-            SettingsView()
+            ArtDepartmentV2SettingsView()
         }
-    }
-
-    private var rootContent: some View {
-        ContentView(store: store)
     }
 }
