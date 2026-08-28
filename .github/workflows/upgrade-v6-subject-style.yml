@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/upgrade-v6-subject-style.yml'
       - 'script/upgrade_v6.py'
+      - 'script/run_upgrade_v6.py'
       - '美术台/**'
       - '美术台Tests/**'
       - '美术台.xcodeproj/**'
@@ -35,11 +36,11 @@ jobs:
           xcodebuild -version
           xcrun swift --version
 
-      - name: Validate migration script
-        run: python3 -m py_compile script/upgrade_v6.py
+      - name: Validate migration scripts
+        run: python3 -m py_compile script/upgrade_v6.py script/run_upgrade_v6.py
 
       - name: Apply V6 migration
-        run: python3 script/upgrade_v6.py
+        run: python3 script/run_upgrade_v6.py
 
       - name: Validate generated source tree
         shell: bash
@@ -91,6 +92,7 @@ jobs:
           set -euo pipefail
           rm '.github/workflows/upgrade-v6-subject-style.yml'
           rm 'script/upgrade_v6.py'
+          rm 'script/run_upgrade_v6.py'
           rm -rf 'script/__pycache__'
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
