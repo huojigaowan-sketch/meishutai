@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/upgrade-macos27-style-v5.yml'
       - 'script/upgrade_v5.py'
+      - 'script/run_upgrade_v5.py'
       - '美术台/**'
       - '美术台Tests/**'
       - '美术台.xcodeproj/**'
@@ -36,7 +37,7 @@ jobs:
           xcrun swift --version
 
       - name: Apply deterministic V5 migration
-        run: python3 script/upgrade_v5.py
+        run: python3 script/run_upgrade_v5.py
 
       - name: Validate generated source tree
         shell: bash
@@ -44,7 +45,10 @@ jobs:
           set -euo pipefail
           git diff --check
           test "$(grep -c 'sampleMedia:' '美术台/Models/ImportedStylePromptCatalog.swift')" -eq 56
-          ! grep -R "recommendedStyleCards" '美术台' || false
+          if grep -R "recommendedStyleCards" '美术台'; then
+            echo 'Automatic style matching must remain removed.' >&2
+            exit 1
+          fi
           grep -q 'MACOSX_DEPLOYMENT_TARGET = 27.0;' '美术台.xcodeproj/project.pbxproj'
           grep -q 'SWIFT_VERSION = 6.0;' '美术台.xcodeproj/project.pbxproj'
           grep -q 'productionThreshold = 0.92' '美术台/Services/AssetReliabilityV4.swift'
@@ -81,6 +85,7 @@ jobs:
           set -euo pipefail
           rm '.github/workflows/upgrade-macos27-style-v5.yml'
           rm 'script/upgrade_v5.py'
+          rm 'script/run_upgrade_v5.py'
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
