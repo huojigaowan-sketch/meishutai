@@ -693,7 +693,7 @@ final class ArtDepartmentV2Store {
     }
 
     private func migrateToAutomaticPipeline() {
-        document.schemaVersion = max(6, document.schemaVersion)
+        document.schemaVersion = max(7, document.schemaVersion)
         for projectIndex in document.projects.indices {
             if document.projects[projectIndex].pipelineStage == .reviewing {
                 document.projects[projectIndex].pipelineStage = .adjudicating

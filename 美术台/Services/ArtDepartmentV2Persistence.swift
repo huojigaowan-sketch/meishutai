@@ -101,7 +101,7 @@ actor ArtDepartmentPersistence {
         if try migratePlaintextStyleImages(in: &document, using: key) {
             shouldPersistMigration = true
         }
-        document.schemaVersion = max(6, document.schemaVersion)
+        document.schemaVersion = max(7, document.schemaVersion)
 
         if shouldPersistMigration {
             try save(document)
@@ -112,7 +112,7 @@ actor ArtDepartmentPersistence {
     func save(_ document: ArtDepartmentWorkspaceDocument) throws {
         try prepareDirectories()
         var document = document
-        document.schemaVersion = max(6, document.schemaVersion)
+        document.schemaVersion = max(7, document.schemaVersion)
         document.updatedAt = .now
         let plaintext = try JSONEncoder.artDepartment.encode(document)
         let encrypted = try StyleLibraryVault.seal(plaintext, using: vaultKey())

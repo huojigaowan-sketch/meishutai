@@ -156,6 +156,50 @@ nonisolated enum ProductionAssetKind: String, CaseIterable, Codable, Identifiabl
     }
 }
 
+nonisolated enum AssetDeliveryStandard {
+    static func summary(for kind: ProductionAssetKind) -> String {
+        switch kind {
+        case .scene:
+            "空场景：无人物、无人影、无动物、无无关杂物，只保留剧本明确的空间结构与固定陈设。"
+        case .character:
+            "纯白背景四视图：左一头肩特写；右侧依次为全身正面、严格侧面、严格背面；中立站姿、双手自然垂放、无表情、均匀光照。"
+        case .prop:
+            "单体道具：干净中性背景，无人物、手部、复杂环境与无关杂物。"
+        }
+    }
+
+    static func positiveInstruction(for kind: ProductionAssetKind) -> String {
+        switch kind {
+        case .scene:
+            """
+            【场景资产强制交付规范】
+            生成无人空场景设计图。画面不得出现人物、人影、人体局部、动物或拟人主体。移除垃圾、散乱物、临时堆放物、非剧本要求的小物件和无关装饰；只保留剧本逐字证据明确的建筑、固定陈设、必要道具与空间关系。场地整洁、无遮挡、空间结构清楚，适合置景、勘景与镜头规划。
+            """
+        case .character:
+            """
+            【人物资产强制交付规范】
+            纯白无缝背景，横向四栏人物设定板，四栏之间留有清晰空白，不添加文字、尺寸线或装饰边框。左一为头肩特写，人物正面直视镜头。右侧三栏均为从头顶到脚底完整入画、同一尺度的全身视图，依次为严格正视图、严格 90° 侧视图、严格 180° 背视图；镜头正对各自视图平面，不使用三分之四角度。所有视图保持同一人物身份、年龄、体貌、发型、服装、配饰和连续性状态。站姿中立，双脚自然分开，双手自然垂放，手指放松，不持物，不遮挡身体；面部无表情；均匀无方向性棚拍光，白平衡中性，阴影极弱，正交或长焦低畸变，无透视夸张。
+            """
+        case .prop:
+            """
+            【道具资产强制交付规范】
+            只呈现该道具本体，使用干净中性背景与均匀光照，不得出现人物、手部、人体局部、复杂环境或无关杂物。完整展示剧本明确的结构、材质、颜色、尺度、状态与识别特征，不增加无证据装饰。
+            """
+        }
+    }
+
+    static func negativeInstruction(for kind: ProductionAssetKind) -> String {
+        switch kind {
+        case .scene:
+            "人物、人影、人群、人体局部、手脚、动物、拟人主体、无剧本依据的车辆、垃圾、杂物堆、散乱小物、临时箱包、无关装饰、无关道具、文字、水印"
+        case .character:
+            "非白背景、环境场景、地面纹理、家具、道具、手持物、文字标签、尺寸线、装饰边框、表情、动态姿势、交叉手臂、手插口袋、三分之四视角、回头、重复视图、缺少视图、裁切头脚、不同服装、不同发型、不同年龄、镜像错误、强烈阴影、戏剧光、透视变形、鱼眼、广角畸变"
+        case .prop:
+            "人物、手部、人体局部、复杂场景、无关杂物、无证据装饰、文字、水印"
+        }
+    }
+}
+
 /// Raw values preserve V2 decoding. These are automatic machine decisions, not
 /// buttons a person must press.
 nonisolated enum AssetReviewDecision: String, CaseIterable, Codable, Sendable {
@@ -479,6 +523,20 @@ nonisolated enum ImageGenerationMode: String, CaseIterable, Codable, Identifiabl
     case cleanup = "场景减噪"
 
     var id: String { rawValue }
+
+    static func selectableCases(
+        for kind: ProductionAssetKind
+    ) -> [ImageGenerationMode] {
+        switch kind {
+        case .scene:
+            [
+                .textToImage, .referenceImage, .aoWhiteModel, .materialRepaint,
+                .reverseShot, .cameraRebuild, .cleanup,
+            ]
+        case .character, .prop:
+            [.textToImage, .referenceImage, .aoWhiteModel, .materialRepaint]
+        }
+    }
 }
 
 nonisolated struct ArtPromptPlan: Codable, Hashable, Sendable {
@@ -513,17 +571,117 @@ nonisolated struct ArtPromptPlan: Codable, Hashable, Sendable {
     )
 }
 
+nonisolated enum ImageAspectRatio: String, CaseIterable, Codable, Identifiable, Sendable {
+    case landscape16x9 = "16:9"
+    case portrait9x16 = "9:16"
+    case portrait3x4 = "3:4"
+    case landscape4x3 = "4:3"
+    case square1x1 = "1:1"
+    case landscape3x2 = "3:2"
+    case portrait2x3 = "2:3"
+    case ultrawide21x9 = "21:9"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .landscape16x9: "16:9 横屏"
+        case .portrait9x16: "9:16 竖屏"
+        case .portrait3x4: "3:4 竖幅"
+        case .landscape4x3: "4:3 横幅"
+        case .square1x1: "1:1 方形"
+        case .landscape3x2: "3:2 横幅"
+        case .portrait2x3: "2:3 竖幅"
+        case .ultrawide21x9: "21:9 超宽"
+        }
+    }
+
+    var isPortrait: Bool {
+        self == .portrait9x16 || self == .portrait3x4 || self == .portrait2x3
+    }
+
+    var promptInstruction: String {
+        "输出画幅固定为 \(rawValue)（\(title)），构图必须完整填充该画幅，不得自动改成其他比例。"
+    }
+
+    func pixelSize(for resolution: String) -> String {
+        let normalized = resolution
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let components = normalized.split(separator: "x")
+        if components.count == 2,
+           components.allSatisfy({ Int($0) != nil })
+        {
+            return normalized
+        }
+        switch normalized.uppercased() {
+        case "1K": return oneKSize
+        case "4K": return fourKSize
+        default: return twoKSize
+        }
+    }
+
+    private var oneKSize: String {
+        switch self {
+        case .landscape16x9: "1280x720"
+        case .portrait9x16: "720x1280"
+        case .portrait3x4: "864x1152"
+        case .landscape4x3: "1152x864"
+        case .square1x1: "1024x1024"
+        case .landscape3x2: "1248x832"
+        case .portrait2x3: "832x1248"
+        case .ultrawide21x9: "1512x648"
+        }
+    }
+
+    private var twoKSize: String {
+        switch self {
+        case .landscape16x9: "2848x1600"
+        case .portrait9x16: "1600x2848"
+        case .portrait3x4: "1728x2304"
+        case .landscape4x3: "2304x1728"
+        case .square1x1: "2048x2048"
+        case .landscape3x2: "2496x1664"
+        case .portrait2x3: "1664x2496"
+        case .ultrawide21x9: "3136x1344"
+        }
+    }
+
+    private var fourKSize: String {
+        switch self {
+        case .landscape16x9: "5504x3040"
+        case .portrait9x16: "3040x5504"
+        case .portrait3x4: "3520x4704"
+        case .landscape4x3: "4704x3520"
+        case .square1x1: "4096x4096"
+        case .landscape3x2: "4992x3328"
+        case .portrait2x3: "3328x4992"
+        case .ultrawide21x9: "6240x2656"
+        }
+    }
+}
+
 nonisolated struct ImageGenerationRecipe: Codable, Hashable, Sendable {
     var model: String
     var size: String
     var maxImages: Int
     var watermark: Bool
+    var aspectRatio: ImageAspectRatio?
+
+    var resolvedAspectRatio: ImageAspectRatio {
+        aspectRatio ?? .landscape16x9
+    }
+
+    var providerSize: String {
+        resolvedAspectRatio.pixelSize(for: size)
+    }
 
     static let arkDefault = ImageGenerationRecipe(
         model: "doubao-seedream-4-0-250828",
         size: "2K",
         maxImages: 1,
-        watermark: false
+        watermark: false,
+        aspectRatio: .landscape16x9
     )
 }
 
@@ -626,7 +784,7 @@ nonisolated struct ArtDepartmentWorkspaceDocument: Codable, Hashable, Sendable {
     var updatedAt: Date
 
     static let empty = ArtDepartmentWorkspaceDocument(
-        schemaVersion: 6,
+        schemaVersion: 7,
         projects: [],
         styleCards: BuiltInStylePromptCatalog.cards,
         updatedAt: .now

@@ -268,10 +268,14 @@ nonisolated enum ArtDepartmentV2Pipeline {
         guard !styleTreatment.isEmpty else {
             throw ArtDepartmentV2Error.noSelectedStyle
         }
-        let operation = [modeInstruction(mode), direction]
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .joined(separator: "\n")
+        let operation = [
+            modeInstruction(mode),
+            direction,
+            AssetDeliveryStandard.positiveInstruction(for: asset.kind),
+        ]
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .filter { !$0.isEmpty }
+        .joined(separator: "\n")
         let positive = """
         【资产设计层——唯一主体来源】
         \(assetDesign)
@@ -282,7 +286,11 @@ nonisolated enum ArtDepartmentV2Pipeline {
         【生成任务】
         \(operation)
         """
-        let negative = "不要从风格提示词或风格样板复制任何具体人物、场景、道具、服装、动作、数量、时代或空间关系；不要补全剧本未明确的年龄、性别、体貌、材质、颜色和损坏状态；不要改变锁定身份与连续性；避免文字、水印、畸形肢体和重复主体。"
+        let negative = uniqueText([
+            "不要从风格提示词或风格样板复制任何具体人物、场景、道具、服装、动作、数量、时代或空间关系；不要补全剧本未明确的年龄、性别、体貌、材质、颜色和损坏状态；不要改变锁定身份与连续性；避免文字、水印、畸形肢体和重复主体。",
+            AssetDeliveryStandard.negativeInstruction(for: asset.kind),
+        ])
+        .joined(separator: "；")
         let facts = asset.verifiedDesignFacts.map(\.value)
         return ArtPromptPlan(
             title: "\(asset.canonicalName) · \(mode.rawValue)",
@@ -327,7 +335,7 @@ nonisolated enum ArtDepartmentV2Pipeline {
         let positive = [
             "【资产设计层——唯一主体来源】\n\(assetDesign)",
             "【视觉风格层——只改变表现方式】\n\(styleTreatment)",
-            "【生成任务】\n\(modeInstruction(mode))\n\(direction)",
+            "【生成任务】\n\(modeInstruction(mode))\n\(direction)\n\(AssetDeliveryStandard.positiveInstruction(for: asset.kind))",
         ]
         .joined(separator: "\n\n")
         return ArtPromptPlan(
@@ -339,7 +347,10 @@ nonisolated enum ArtDepartmentV2Pipeline {
             elements: asset.elementNotes,
             lighting: "",
             positivePrompt: positive,
-            negativePrompt: "风格不得提供主体内容；不得臆造剧本未明确事实；避免文字、水印、畸形肢体和重复主体。",
+            negativePrompt: uniqueText([
+                "风格不得提供主体内容；不得臆造剧本未明确事实；避免文字、水印、畸形肢体和重复主体。",
+                AssetDeliveryStandard.negativeInstruction(for: asset.kind),
+            ]).joined(separator: "；"),
             lockedFacts: uniqueText(
                 [asset.canonicalName, asset.continuityState]
                     + asset.verifiedDesignFacts.map(\.value)
