@@ -78,7 +78,7 @@ Apple Foundation Models 的 `Generable` 类型会转换为 JSON schema。应用�
 
 ## 工程
 
-- 平台：macOS 27+
+- 平台：macOS 26+
 - UI：SwiftUI / AppKit
 - AI：Foundation Models + Natural Language + Vision
 - 项目：`美术台.xcodeproj`
