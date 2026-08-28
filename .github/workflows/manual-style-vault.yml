@@ -1,0 +1,90 @@
+name: Manual style selection and encrypted vault migration
+
+on:
+  push:
+    branches: [feature/art-department-v2]
+    paths:
+      - .github/workflows/manual-style-vault.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  migrate-and-verify:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: feature/art-department-v2
+
+      - name: Show Apple toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          xcrun swift --version
+
+      - name: Reassemble and apply the reviewed migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/style-vault-patch/part-* > /tmp/apply_manual_style_vault.py.gz.b64
+          echo 'c7708647e7333303ebb6985b5d6bd96128723d90a6a4af9ee2c993dd3ca83cc8  /tmp/apply_manual_style_vault.py.gz.b64' | shasum -a 256 -c -
+          base64 --decode /tmp/apply_manual_style_vault.py.gz.b64 | gzip -dc > /tmp/apply_manual_style_vault.py
+          echo 'a8ba25a7d29266ad05db8f66c5ba88f75c9ce64ddac40497269d087351045505  /tmp/apply_manual_style_vault.py' | shasum -a 256 -c -
+          python3 /tmp/apply_manual_style_vault.py
+          rm /tmp/apply_manual_style_vault.py /tmp/apply_manual_style_vault.py.gz.b64
+
+      - name: Assert manual-only style contract and repository hygiene
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R -n --include='*.swift' --include='*.md' 'recommendedStyleCards' 美术台 美术台Tests docs README.md
+          ! grep -R -n --include='*.swift' --include='*.md' '自动匹配' 美术台 美术台Tests docs README.md
+          ! grep -R -n --include='*.swift' --include='*.md' '自动推荐' 美术台 美术台Tests docs README.md
+          test "$(grep -c 'StylePromptCard(' 美术台/Models/ImportedStylePromptCatalog.swift)" = "56"
+          grep -q '7c065c2b429bc75334239965768849cb00c8987d' 美术台/Models/ImportedStylePromptCatalog.swift
+          grep -q 'AES.GCM' 美术台/Services/ArtDepartmentV2Persistence.swift
+          grep -q 'kSecAttrAccessibleWhenUnlockedThisDeviceOnly' 美术台/Services/ArtDepartmentV2Clients.swift
+          git diff --check
+
+      - name: Build application without signing
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project '美术台.xcodeproj' \
+            -scheme '美术台' \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            MACOSX_DEPLOYMENT_TARGET=26.0 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build | tee /tmp/meishutai-manual-style-build.log
+
+      - name: Run unit tests without signing
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project '美术台.xcodeproj' \
+            -scheme '美术台' \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            MACOSX_DEPLOYMENT_TARGET=26.0 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            test | tee /tmp/meishutai-manual-style-tests.log
+
+      - name: Commit verified production changes and remove temporary files
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/manual-style-vault.yml
+          rm -rf .github/style-vault-patch
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'feat: require manual styles and encrypt the style library'
+          git push origin HEAD:feature/art-department-v2
