@@ -1,0 +1,71 @@
+name: Validate Apple automated extraction v3
+
+on:
+  push:
+    branches: [feature/art-department-v2]
+    paths:
+      - .github/workflows/validate-apple-schema-v3.yml
+      - '美术台/**'
+      - '美术台Tests/**'
+      - 'docs/**'
+      - README.md
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: feature/art-department-v2
+
+      - name: Parse changed Swift sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            '美术台/Models/ArtDepartmentV2Models.swift'
+            '美术台/Services/AppleStructuredExtractionEngine.swift'
+            '美术台/Services/ArtDepartmentV2Clients.swift'
+            '美术台/Services/ArtDepartmentV2Persistence.swift'
+            '美术台/Services/ArtDepartmentV2Pipeline.swift'
+            '美术台/Stores/ArtDepartmentV2Store.swift'
+            '美术台/Views/ArtDepartmentV2Views.swift'
+            '美术台/Views/ArtDepartmentV2SettingsView.swift'
+            '美术台/ContentView.swift'
+            '美术台/App/MyApp.swift'
+            '美术台Tests/ArtDepartmentV2Tests.swift'
+          )
+          for file in "${files[@]}"; do
+            swiftc -frontend -parse "$file"
+          done
+
+      - name: Validate automatic Apple contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q '@Generable' '美术台/Services/AppleStructuredExtractionEngine.swift'
+          grep -q 'GeneratedContent(json:' '美术台/Services/AppleStructuredExtractionEngine.swift'
+          grep -q 'contentTagging' '美术台/Services/AppleStructuredExtractionEngine.swift'
+          grep -q 'NLTagger' '美术台/Services/AppleStructuredExtractionEngine.swift'
+          grep -q 'NLEmbedding' '美术台/Services/AppleStructuredExtractionEngine.swift'
+          grep -q 'RecognizeTextRequest' '美术台/Services/AppleStructuredExtractionEngine.swift'
+          grep -q 'GenerateImageFeaturePrintRequest' '美术台/Services/AppleStructuredExtractionEngine.swift'
+          grep -q '自动资产库' '美术台/Views/ArtDepartmentV2Views.swift'
+          grep -q '不需要人工确认' '美术台/Services/ArtDepartmentV2Pipeline.swift'
+          ! grep -q 'setAssetDecision' '美术台/Stores/ArtDepartmentV2Store.swift'
+          test -f docs/APPLE_AUTOMATED_EXTRACTION_ARCHITECTURE.md
+          git diff --check origin/main...HEAD
+
+      - name: Remove temporary validation workflow
+        shell: bash
+        run: |
+          rm .github/workflows/validate-apple-schema-v3.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- .github/workflows/validate-apple-schema-v3.yml
+          git commit -m 'chore: complete Apple extraction validation'
+          git push origin HEAD:feature/art-department-v2
