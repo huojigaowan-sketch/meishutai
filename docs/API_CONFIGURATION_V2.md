@@ -1,108 +1,111 @@
-# API 配置与数据流
+# API 与 Apple GenerationSchema 配置
 
-## 大语言模型
+## 1. 默认模型路线
 
-设置项：
+美术台优先使用 macOS 27 的 Apple Foundation Models：
 
 ```text
-art.llm.provider
-art.llm.baseURL
-art.llm.model
-Keychain: llm-api-key
+SystemLanguageModel.default
+  + LanguageModelSession
+  + @Generable / @Guide
+  + GenerationOptions(samplingMode: .greedy)
 ```
+
+Apple Intelligence 可用且支持 `zh_CN` 时，标准化、资产提取和提示词计划不需要 API Key。
+
+系统启动时检查：
+
+- `SystemLanguageModel.isAvailable`；
+- `SystemLanguageModel.availability`；
+- `supportsLocale(Locale(identifier: "zh_CN"))`；
+- `contextSize`。
+
+设备不支持、模型尚未下载或中文不受支持时，应用显示明确路线，不伪装成本地模型已运行。
+
+## 2. 唯一结构化接口
+
+所有结构化任务均定义为 Apple `Generable` 类型：
+
+- `AppleSchemaNormalizationBatch`
+- `AppleSchemaAssetBatch`
+- `AppleSchemaContentTags`
+- `AppleSchemaPromptPlan`
+
+本地调用：
+
+```swift
+session.respond(
+    to: prompt,
+    generating: AppleSchemaAssetBatch.self
+)
+```
+
+远程调用：
+
+```text
+/chat/completions JSON
+  → GeneratedContent(json:)
+  → value(AppleSchemaAssetBatch.self)
+```
+
+远程接口因此只是 transport adapter，不拥有另一套业务 DTO。
+
+## 3. 可选 DeepSeek / OpenAI 兼容增强
+
+设置中填写：
+
+- Base URL；
+- 模型 ID；
+- API Key。
+
+留空 API Key：纯 Apple 本地路线。
+
+填写 API Key：Apple 本地与远程模型并行生成同一 Schema，标准化按完整覆盖和结构质量选择；资产提取按逐字 evidence 和多引擎共识自动核验。
 
 默认 DeepSeek：
 
 ```text
 Base URL: https://api.deepseek.com
-Model: deepseek-v4-flash
 Endpoint: /chat/completions
-Response format: json_object
 ```
 
-也可配置任意支持 OpenAI Chat Completions 结构和 JSON mode 的兼容接口。
+应用请求 JSON mode，并把 `Output.generationSchema` 的结构说明放入系统指令。返回值必须能被 `GeneratedContent(json:)` 和对应 `Generable` 类型解码。
 
-大模型用于：
+## 4. 火山方舟 Ark Images API
 
-1. 原始剧本 → 标准 Final Draft 元素；
-2. 标准场景 → 场景、人物、道具证据；
-3. 已确认资产 + 风格卡 → 可审阅生图提示词。
-
-模型不直接写 FDX 文件，也不直接把未经审阅的资产送去生图。
-
-## 火山方舟 Ark Images API
-
-设置项：
+默认端点：
 
 ```text
-art.ark.endpoint
-art.ark.model
-Keychain: ark-api-key
+https://ark.cn-beijing.volces.com/api/v3/images/generations
 ```
 
-默认：
+配置：
 
-```text
-Endpoint: https://ark.cn-beijing.volces.com/api/v3/images/generations
-Model: doubao-seedream-4-0-250828
-Response format: b64_json
-```
+- Ark API Key；
+- 模型 ID；
+- 图片尺寸；
+- 数量；
+- 水印；
+- 零张或多张参考图。
 
-应用请求字段：
+生图请求只使用自动通过资产、锁定风格卡和 Apple Schema 提示词计划。隔离资产不允许进入请求。
 
-- `model`
-- `prompt`
-- `negative_prompt`（可选）
-- `size`
-- `image`（参考图，可为多张 Data URI）
-- `sequential_image_generation`
-- `sequential_image_generation_options.max_images`
-- `response_format`
-- `watermark`
+## 5. Keychain
 
-应用同时兼容返回：
+- LLM Key：`llm-api-key`
+- Ark Key：`ark-api-key`
+- Service：`com.meishutai.art-department-v2`
 
-- `data[].b64_json`
-- `data[].url`
+密钥不写入 JSON、日志、Git 仓库或导出文件。
 
-下载后立即写入本地应用支持目录，并保存完整 `ArtPromptPlan`、模型、尺寸、风格卡 ID 和服务端 request ID。
+## 6. Apple 文档入口
 
-## 密钥安全
+- Foundation Models： https://developer.apple.com/documentation/foundationmodels
+- Generable： https://developer.apple.com/documentation/foundationmodels/generable
+- GeneratedContent： https://developer.apple.com/documentation/foundationmodels/generatedcontent
+- LanguageModelSession： https://developer.apple.com/documentation/foundationmodels/languagemodelsession
+- content tagging： https://developer.apple.com/documentation/foundationmodels/categorizing-and-organizing-data-with-content-tags
+- Natural Language： https://developer.apple.com/documentation/naturallanguage
+- Vision： https://developer.apple.com/documentation/vision
 
-LLM 和 Ark API Key 使用独立的 macOS Keychain account：
-
-```text
-service: com.meishutai.art-department-v2
-accounts:
-- llm-api-key
-- ark-api-key
-```
-
-Key 不写入 workspace JSON、不进入 Git、不显示在导出文件中。
-
-## 数据发送范围
-
-### 标准化
-
-发送当前 SourceUnit 分块及其 ID，不发送本地图片。
-
-### 资产提取
-
-发送单个标准场景，不发送整部剧本。这样可以减少跨场污染，也降低单次请求长度。
-
-### 提示词规划
-
-发送当前已确认资产、少量原文证据和用户选中的风格提示词。参考图不发送给大语言模型。
-
-### Ark 生图
-
-发送用户审阅后的生图提示词，以及用户主动选中的参考图。
-
-## 错误语义
-
-- HTTP 非 2xx：显示状态码和截断后的服务端信息；
-- LLM 空内容或非法 JSON：不覆盖上次成功结果；
-- SourceUnit 覆盖不完整：标准化失败；
-- Ark 无图像数据：不创建空生成记录；
-- URL 图片下载失败：本轮失败，不写入不完整历史；
-- 所有网络操作最多保留有限重试，不无限阻塞界面。
+Foundation Models 与部分 Vision Swift API 仍可能标记为 beta；最终发布必须使用目标 Xcode 与系统 SDK 重新完成类型检查、真实设备运行和模型可用性测试。

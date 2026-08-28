@@ -20,6 +20,7 @@ final class ArtDepartmentV2Store {
     var progress: PipelineProgress = .idle
     var errorMessage: String?
     var noticeMessage: String?
+    var showsDiagnostics = false
 
     @ObservationIgnored private let persistence = ArtDepartmentPersistence.shared
 
@@ -31,19 +32,27 @@ final class ArtDepartmentV2Store {
         return document.projects.first { $0.id == selectedProjectID }
     }
 
+    /// The production library contains only automatically accepted assets. Low
+    /// confidence candidates are retained in diagnostics, never presented as a
+    /// task a person must approve.
     var filteredAssets: [ProductionAsset] {
-        currentProject?.assets.filter { $0.kind == selectedAssetKind && $0.reviewDecision != .rejected } ?? []
+        currentProject?.assets.filter {
+            $0.kind == selectedAssetKind && $0.isUsable
+        } ?? []
+    }
+
+    var diagnosticAssets: [ProductionAsset] {
+        currentProject?.assets.filter {
+            $0.isQuarantined || $0.reviewDecision == .rejected
+        } ?? []
     }
 
     var selectedAsset: ProductionAsset? {
         guard let selectedAssetID,
               let selected = currentProject?.assets.first(where: {
-                  $0.id == selectedAssetID
-                    && $0.kind == selectedAssetKind
-                    && $0.reviewDecision != .rejected
-              }) else {
-            return filteredAssets.first
-        }
+                  $0.id == selectedAssetID && $0.kind == selectedAssetKind && $0.isUsable
+              })
+        else { return filteredAssets.first }
         return selected
     }
 
@@ -51,15 +60,23 @@ final class ArtDepartmentV2Store {
         document.styleCards.filter { selectedStyleCardIDs.contains($0.id) }
     }
 
+    var activeEngineStatus: AppleEngineStatusSnapshot? {
+        currentProject?.engineStatus
+    }
+
     init() {}
 
     func load() async {
         do {
             document = try await persistence.load()
+            migrateToAutomaticPipeline()
             if document.projects.isEmpty { addProject() }
-            selectedProjectID = selectedProjectID.flatMap { id in document.projects.contains(where: { $0.id == id }) ? id : nil }
-                ?? document.projects.first?.id
+            selectedProjectID = selectedProjectID.flatMap { id in
+                document.projects.contains(where: { $0.id == id }) ? id : nil
+            } ?? document.projects.first?.id
             synchronizeSelections()
+            await refreshEngineStatus()
+            await persist()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -71,13 +88,19 @@ final class ArtDepartmentV2Store {
         selectedProjectID = project.id
         selectedSection = .script
         selectedAssetID = nil
-        Task { await persist() }
+        promptPlan = .empty
+        Task {
+            await refreshEngineStatus()
+            await persist()
+        }
     }
 
     func deleteCurrentProject() {
         guard let id = currentProject?.id else { return }
         document.projects.removeAll { $0.id == id }
-        if document.projects.isEmpty { document.projects.append(ArtDepartmentProject(title: "美术项目 1")) }
+        if document.projects.isEmpty {
+            document.projects.append(ArtDepartmentProject(title: "美术项目 1"))
+        }
         selectedProjectID = document.projects.first?.id
         synchronizeSelections()
         Task { await persist() }
@@ -86,10 +109,14 @@ final class ArtDepartmentV2Store {
     func selectProject(_ id: UUID) {
         selectedProjectID = id
         synchronizeSelections()
+        promptPlan = .empty
     }
 
     func updateProjectTitle(_ title: String) {
-        mutateProject { $0.title = title; $0.updatedAt = .now }
+        mutateProject {
+            $0.title = title
+            $0.updatedAt = .now
+        }
         Task { await persist() }
     }
 
@@ -102,8 +129,10 @@ final class ArtDepartmentV2Store {
             $0.canonicalFountain = ""
             $0.normalizationAudit = nil
             $0.assets = []
+            $0.automationSummary = nil
             $0.updatedAt = .now
         }
+        synchronizeSelections()
     }
 
     func updateCanonicalFountain(_ text: String) {
@@ -112,15 +141,17 @@ final class ArtDepartmentV2Store {
             $0.canonicalScenes = CanonicalFountainParser.parse(text)
             $0.pipelineStage = $0.canonicalScenes.isEmpty ? .source : .canonical
             $0.assets = []
+            $0.automationSummary = nil
             $0.updatedAt = .now
         }
+        synchronizeSelections()
     }
 
     func importScript(from url: URL) async {
         let accessing = url.startAccessingSecurityScopedResource()
         defer { if accessing { url.stopAccessingSecurityScopedResource() } }
         do {
-            let text = try ScriptFileReader.read(url)
+            let text = try await AppleScriptDocumentReader.shared.read(url)
             mutateProject {
                 $0.sourceText = text
                 $0.sourceFileName = url.lastPathComponent
@@ -130,98 +161,182 @@ final class ArtDepartmentV2Store {
                 $0.canonicalFountain = ""
                 $0.normalizationAudit = nil
                 $0.assets = []
+                $0.automationSummary = nil
                 $0.updatedAt = .now
             }
-            noticeMessage = "已导入 \(url.lastPathComponent)，原文保持不变。"
+            noticeMessage = "已通过 Apple 文档读取管线导入 \(url.lastPathComponent)，原文保持不变。"
             await persist()
-        } catch { errorMessage = error.localizedDescription }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func runFullPipeline() async {
+        guard let project = currentProject else {
+            errorMessage = ArtDepartmentV2Error.noProject.localizedDescription
+            return
+        }
+        guard !project.sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            errorMessage = ArtDepartmentV2Error.emptySource.localizedDescription
+            return
+        }
+        await runWork {
+            let client = remoteClientIfConfigured()
+            let configurationName = (try? ArtLLMConfiguration.current().model) ?? ""
+            mutateProject { $0.pipelineStage = .normalizing }
+            let normalized = try await ArtDepartmentV2Pipeline.normalizeScript(
+                sourceText: project.sourceText,
+                client: client,
+                modelName: configurationName,
+                progress: { [weak self] value in
+                    await MainActor.run { self?.progress = value }
+                }
+            )
+            mutateProject {
+                $0.canonicalScenes = normalized.scenes
+                $0.canonicalFountain = normalized.fountain
+                $0.normalizationAudit = normalized.audit
+                $0.engineStatus = normalized.engineStatus
+                $0.pipelineStage = .extracting
+                $0.assets = []
+                $0.automationSummary = nil
+                $0.updatedAt = .now
+            }
+            let extracted = try await ArtDepartmentV2Pipeline.extractAssets(
+                scenes: normalized.scenes,
+                client: client,
+                progress: { [weak self] value in
+                    await MainActor.run { self?.progress = value }
+                }
+            )
+            mutateProject {
+                $0.assets = extracted.assets
+                $0.automationSummary = extracted.summary
+                $0.engineStatus = extracted.engineStatus
+                $0.pipelineStage = .completed
+                $0.updatedAt = .now
+            }
+            synchronizeSelections()
+            selectedSection = .assets
+            noticeMessage = automationNotice(extracted.summary)
+            await persist()
+        }
     }
 
     func normalizeCurrentScript() async {
-        guard let project = currentProject else { errorMessage = ArtDepartmentV2Error.noProject.localizedDescription; return }
-        let source = project.sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !source.isEmpty else { errorMessage = ArtDepartmentV2Error.emptySource.localizedDescription; return }
+        guard let project = currentProject else {
+            errorMessage = ArtDepartmentV2Error.noProject.localizedDescription
+            return
+        }
+        guard !project.sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            errorMessage = ArtDepartmentV2Error.emptySource.localizedDescription
+            return
+        }
         await runWork {
-            let configuration = try ArtLLMConfiguration.current()
+            let client = remoteClientIfConfigured()
+            let configurationName = (try? ArtLLMConfiguration.current().model) ?? ""
             mutateProject { $0.pipelineStage = .normalizing }
             let result = try await ArtDepartmentV2Pipeline.normalizeScript(
                 sourceText: project.sourceText,
-                client: ArtChatCompletionClient(configuration: configuration),
-                modelName: configuration.model,
-                progress: { [weak self] value in await MainActor.run { self?.progress = value } }
+                client: client,
+                modelName: configurationName,
+                progress: { [weak self] value in
+                    await MainActor.run { self?.progress = value }
+                }
             )
             mutateProject {
                 $0.canonicalScenes = result.scenes
                 $0.canonicalFountain = result.fountain
                 $0.normalizationAudit = result.audit
+                $0.engineStatus = result.engineStatus
                 $0.pipelineStage = .canonical
                 $0.assets = []
+                $0.automationSummary = nil
                 $0.updatedAt = .now
             }
-            noticeMessage = "标准化完成：\(result.scenes.count) 场，原文证据覆盖 \(result.audit.coveredSourceUnitCount)/\(result.audit.sourceUnitCount)。"
+            noticeMessage = "标准化完成：\(result.scenes.count) 场，证据覆盖 \(result.audit.coveredSourceUnitCount)/\(result.audit.sourceUnitCount)。"
             await persist()
         }
     }
 
     func extractCurrentAssets() async {
-        guard let project = currentProject else { errorMessage = ArtDepartmentV2Error.noProject.localizedDescription; return }
-        let scenes = project.canonicalScenes.isEmpty ? CanonicalFountainParser.parse(project.canonicalFountain) : project.canonicalScenes
-        guard !scenes.isEmpty else { errorMessage = ArtDepartmentV2Error.noCanonicalScenes.localizedDescription; return }
+        guard let project = currentProject else {
+            errorMessage = ArtDepartmentV2Error.noProject.localizedDescription
+            return
+        }
+        let scenes = project.canonicalScenes.isEmpty
+            ? CanonicalFountainParser.parse(project.canonicalFountain)
+            : project.canonicalScenes
+        guard !scenes.isEmpty else {
+            errorMessage = ArtDepartmentV2Error.noCanonicalScenes.localizedDescription
+            return
+        }
         await runWork {
-            let configuration = try ArtLLMConfiguration.current()
-            mutateProject { $0.pipelineStage = .extracting }
-            let assets = try await ArtDepartmentV2Pipeline.extractAssets(
+            let client = remoteClientIfConfigured()
+            mutateProject { $0.pipelineStage = .adjudicating }
+            let result = try await ArtDepartmentV2Pipeline.extractAssets(
                 scenes: scenes,
-                client: ArtChatCompletionClient(configuration: configuration),
-                progress: { [weak self] value in await MainActor.run { self?.progress = value } }
+                client: client,
+                progress: { [weak self] value in
+                    await MainActor.run { self?.progress = value }
+                }
             )
             mutateProject {
                 $0.canonicalScenes = scenes
-                $0.assets = assets
-                $0.pipelineStage = .reviewing
+                $0.assets = result.assets
+                $0.automationSummary = result.summary
+                $0.engineStatus = result.engineStatus
+                $0.pipelineStage = .completed
                 $0.updatedAt = .now
             }
             synchronizeSelections()
-            noticeMessage = "提取完成：\(assets.filter { $0.kind == .scene }.count) 场景、\(assets.filter { $0.kind == .character }.count) 人物、\(assets.filter { $0.kind == .prop }.count) 道具。"
+            noticeMessage = automationNotice(result.summary)
             await persist()
         }
     }
 
-    func setAssetDecision(_ decision: AssetReviewDecision, assetID: UUID) {
-        mutateProject { project in
-            guard let index = project.assets.firstIndex(where: { $0.id == assetID }) else { return }
-            project.assets[index].reviewDecision = decision
-            project.updatedAt = .now
-            let remaining = project.assets.contains { $0.reviewDecision == .pending || $0.reviewDecision == .conflict }
-            if !remaining { project.pipelineStage = .completed }
-        }
-        Task { await persist() }
-    }
-
-    func updateAsset(_ updated: ProductionAsset) {
-        mutateProject { project in
-            guard let index = project.assets.firstIndex(where: { $0.id == updated.id }) else { return }
-            project.assets[index] = updated
-            project.updatedAt = .now
-        }
-        Task { await persist() }
-    }
-
-    func addStyleCard(title: String, prompt: String, category: StylePromptCategory, tags: [String], notes: String, imageURL: URL?) async {
+    func addStyleCard(
+        title: String,
+        prompt: String,
+        category: StylePromptCategory,
+        tags: [String],
+        notes: String,
+        imageURL: URL?
+    ) async {
         let cleanTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanTitle.isEmpty, !cleanPrompt.isEmpty else { return }
-        var card = StylePromptCard(title: cleanTitle, prompt: cleanPrompt, category: category, tags: tags, notes: notes)
+        var card = StylePromptCard(
+            title: cleanTitle,
+            prompt: cleanPrompt,
+            category: category,
+            tags: tags,
+            notes: notes
+        )
         do {
             if let imageURL {
                 let accessing = imageURL.startAccessingSecurityScopedResource()
                 defer { if accessing { imageURL.stopAccessingSecurityScopedResource() } }
-                card.referenceImagePath = try await persistence.importStyleImage(from: imageURL, cardID: card.id)
+                let imageData = try Data(contentsOf: imageURL)
+                if let duplicate = try await nearestDuplicateStyle(for: imageData) {
+                    selectedStyleCardIDs = [duplicate.id]
+                    noticeMessage = "该参考图与“\(duplicate.title)”高度相似，已直接复用现有风格卡。"
+                    return
+                }
+                card.referenceImagePath = try await persistence.importStyleImage(
+                    from: imageURL,
+                    cardID: card.id
+                )
+                let signature = try? await AppleVisionAnalyzer.shared.signature(for: imageData)
+                card.visionFingerprintBase64 = signature?.featurePrintBase64
             }
             document.styleCards.insert(card, at: 0)
             selectedStyleCardIDs = [card.id]
+            noticeMessage = "风格卡已保存；参考图由 Apple Vision 建立相似度签名。"
             await persist()
-        } catch { errorMessage = error.localizedDescription }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     func updateStyleCard(_ card: StylePromptCard) {
@@ -233,52 +348,102 @@ final class ArtDepartmentV2Store {
     }
 
     func deleteStyleCard(_ id: UUID) {
-        guard let card = document.styleCards.first(where: { $0.id == id }), !card.isBuiltIn else { return }
+        guard let card = document.styleCards.first(where: { $0.id == id }),
+              !card.isBuiltIn else { return }
         document.styleCards.removeAll { $0.id == id }
         selectedStyleCardIDs.removeAll { $0 == id }
         Task { await persist() }
     }
 
     func toggleStyleSelection(_ id: UUID) {
-        if selectedStyleCardIDs.contains(id) { selectedStyleCardIDs.removeAll { $0 == id } }
-        else { selectedStyleCardIDs.append(id) }
+        if selectedStyleCardIDs.contains(id) {
+            selectedStyleCardIDs.removeAll { $0 == id }
+        } else {
+            selectedStyleCardIDs.append(id)
+        }
     }
 
     func importGenerationReference(_ url: URL) async {
         let accessing = url.startAccessingSecurityScopedResource()
         defer { if accessing { url.stopAccessingSecurityScopedResource() } }
         do {
-            generationReferencePath = try await persistence.importStyleImage(from: url, cardID: UUID())
-        } catch { errorMessage = error.localizedDescription }
+            generationReferencePath = try await persistence.importStyleImage(
+                from: url,
+                cardID: UUID()
+            )
+            noticeMessage = "已加入本轮参考图。"
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     func planGenerationPrompt() async {
-        guard let asset = selectedAsset else { errorMessage = ArtDepartmentV2Error.noSelectedAsset.localizedDescription; return }
-        let cards = selectedStyleCards
-        guard !cards.isEmpty else { errorMessage = ArtDepartmentV2Error.noSelectedStyle.localizedDescription; return }
+        guard let asset = selectedAsset else {
+            errorMessage = ArtDepartmentV2Error.noSelectedAsset.localizedDescription
+            return
+        }
         await runWork {
-            let client: ArtChatCompletionClient?
-            if let configuration = try? ArtLLMConfiguration.current() { client = ArtChatCompletionClient(configuration: configuration) }
-            else { client = nil }
-            promptPlan = try await ArtDepartmentV2Pipeline.makePromptPlan(asset: asset, styleCards: cards, mode: generationMode, direction: generationDirection, client: client)
-            noticeMessage = "生图提示词已生成。请审阅材质、构图、元素和锁定事实后再调用 Ark。"
+            let cards = resolveStyleCards(for: asset)
+            guard !cards.isEmpty else { throw ArtDepartmentV2Error.noSelectedStyle }
+            let client = remoteClientIfConfigured()
+            promptPlan = try await ArtDepartmentV2Pipeline.makePromptPlan(
+                asset: asset,
+                styleCards: cards,
+                mode: generationMode,
+                direction: generationDirection,
+                client: client
+            )
+            selectedStyleCardIDs = cards.map(\.id)
+            noticeMessage = "Apple GenerationSchema 已生成完整生图计划，可直接生图。"
         }
     }
 
     func generateImages() async {
-        guard let project = currentProject, let asset = selectedAsset else { errorMessage = ArtDepartmentV2Error.noSelectedAsset.localizedDescription; return }
-        guard !promptPlan.positivePrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { errorMessage = "请先生成或填写生图提示词。"; return }
+        guard let project = currentProject,
+              let asset = selectedAsset else {
+            errorMessage = ArtDepartmentV2Error.noSelectedAsset.localizedDescription
+            return
+        }
         await runWork {
+            let cards = resolveStyleCards(for: asset)
+            guard !cards.isEmpty else { throw ArtDepartmentV2Error.noSelectedStyle }
+            if promptPlan.positivePrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || promptPlan.mode != generationMode
+                || promptPlan.chosenStyleCardIDs != cards.map(\.id)
+            {
+                promptPlan = try await ArtDepartmentV2Pipeline.makePromptPlan(
+                    asset: asset,
+                    styleCards: cards,
+                    mode: generationMode,
+                    direction: generationDirection,
+                    client: remoteClientIfConfigured()
+                )
+                selectedStyleCardIDs = cards.map(\.id)
+            }
+
             let configuration = try ArkImageConfiguration.current()
             var references: [Data] = []
-            for card in selectedStyleCards {
-                if let data = try await persistence.data(for: card.referenceImagePath) { references.append(data) }
+            for card in cards {
+                if let data = try await persistence.data(for: card.referenceImagePath) {
+                    references.append(data)
+                }
             }
-            if let data = try await persistence.data(for: generationReferencePath) { references.append(data) }
+            if let data = try await persistence.data(for: generationReferencePath) {
+                references.append(data)
+            }
             var recipe = generationRecipe
-            if recipe.model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { recipe.model = configuration.model }
-            progress = .init(title: "Ark 生图", detail: "正在根据已审阅提示词生成", current: 0, total: max(1, recipe.maxImages))
-            let payloads = try await ArkImageGenerationClient(configuration: configuration).generate(
+            if recipe.model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                recipe.model = configuration.model
+            }
+            progress = .init(
+                title: "Ark 生图",
+                detail: "基于自动核验资产与锁定风格生成",
+                current: 0,
+                total: max(1, recipe.maxImages)
+            )
+            let payloads = try await ArkImageGenerationClient(
+                configuration: configuration
+            ).generate(
                 prompt: promptPlan.positivePrompt,
                 negativePrompt: promptPlan.negativePrompt,
                 recipe: recipe,
@@ -287,11 +452,33 @@ final class ArtDepartmentV2Store {
             var records: [GeneratedImageRecord] = []
             for (offset, payload) in payloads.enumerated() {
                 let id = UUID()
-                let path = try await persistence.saveGeneratedImage(payload.data, projectID: project.id, imageID: id, fileExtension: payload.fileExtension)
-                records.append(GeneratedImageRecord(id: id, projectID: project.id, assetID: asset.id, styleCardIDs: selectedStyleCardIDs, promptPlan: promptPlan, recipe: recipe, localImagePath: path, providerRequestID: payload.requestID))
-                progress = .init(title: "Ark 生图", detail: "已保存 \(offset + 1) / \(payloads.count)", current: offset + 1, total: payloads.count)
+                let path = try await persistence.saveGeneratedImage(
+                    payload.data,
+                    projectID: project.id,
+                    imageID: id,
+                    fileExtension: payload.fileExtension
+                )
+                records.append(GeneratedImageRecord(
+                    id: id,
+                    projectID: project.id,
+                    assetID: asset.id,
+                    styleCardIDs: cards.map(\.id),
+                    promptPlan: promptPlan,
+                    recipe: recipe,
+                    localImagePath: path,
+                    providerRequestID: payload.requestID
+                ))
+                progress = .init(
+                    title: "Ark 生图",
+                    detail: "已保存 \(offset + 1) / \(payloads.count)",
+                    current: offset + 1,
+                    total: payloads.count
+                )
             }
-            mutateProject { $0.generatedImages.insert(contentsOf: records, at: 0); $0.updatedAt = .now }
+            mutateProject {
+                $0.generatedImages.insert(contentsOf: records, at: 0)
+                $0.updatedAt = .now
+            }
             noticeMessage = "已生成并本地保存 \(records.count) 张图。"
             await persist()
         }
@@ -299,48 +486,168 @@ final class ArtDepartmentV2Store {
 
     func imageURL(for relativePath: String?) -> URL? {
         guard let relativePath, !relativePath.isEmpty else { return nil }
-        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Application Support", directoryHint: .isDirectory)
-        return support.appending(path: "MeishutaiV2", directoryHint: .isDirectory).appending(path: relativePath)
+        let support = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first ?? FileManager.default.homeDirectoryForCurrentUser
+            .appending(path: "Library/Application Support", directoryHint: .isDirectory)
+        return support
+            .appending(path: "MeishutaiV2", directoryHint: .isDirectory)
+            .appending(path: relativePath)
     }
 
-    func fountainExportData() -> Data? { currentProject?.canonicalFountain.data(using: .utf8) }
+    func fountainExportData() -> Data? {
+        currentProject?.canonicalFountain.data(using: .utf8)
+    }
+
     func fdxExportData() -> Data? {
         guard let project = currentProject else { return nil }
-        return FinalDraftFDXExporter.data(scenes: project.canonicalScenes, title: project.title)
+        return FinalDraftFDXExporter.data(
+            scenes: project.canonicalScenes,
+            title: project.title
+        )
     }
+
     func assetJSONExportData() -> Data? {
         guard let project = currentProject else { return nil }
-        let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        return try? encoder.encode(project.assets.filter { $0.reviewDecision == .accepted })
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return try? encoder.encode(project.usableAssets)
+    }
+
+    // MARK: - Private
+
+    private func refreshEngineStatus() async {
+        let status = await AppleStructuredExtractionEngine.shared.status(
+            remoteAvailable: remoteClientIfConfigured() != nil
+        )
+        mutateProject {
+            $0.engineStatus = status
+            $0.updatedAt = .now
+        }
+    }
+
+    private func remoteClientIfConfigured() -> ArtChatCompletionClient? {
+        guard let configuration = try? ArtLLMConfiguration.current() else { return nil }
+        return ArtChatCompletionClient(configuration: configuration)
+    }
+
+    private func resolveStyleCards(
+        for asset: ProductionAsset
+    ) -> [StylePromptCard] {
+        if !selectedStyleCards.isEmpty { return selectedStyleCards }
+        return ArtDepartmentV2Pipeline.recommendedStyleCards(
+            for: asset,
+            cards: document.styleCards,
+            mode: generationMode
+        )
+    }
+
+    private func nearestDuplicateStyle(
+        for imageData: Data
+    ) async throws -> StylePromptCard? {
+        var best: (StylePromptCard, Double)?
+        for card in document.styleCards {
+            guard let existing = try await persistence.data(for: card.referenceImagePath) else {
+                continue
+            }
+            guard let distance = try? await AppleVisionAnalyzer.shared.distance(
+                between: imageData,
+                and: existing
+            ) else { continue }
+            if best == nil || distance < best!.1 { best = (card, distance) }
+        }
+        guard let best, best.1 < 0.035 else { return nil }
+        return best.0
+    }
+
+    private func automationNotice(
+        _ summary: AssetAutomationSummary
+    ) -> String {
+        "自动完成：\(summary.sceneCount) 场景、\(summary.characterCount) 人物、\(summary.propCount) 道具。另有 \(summary.quarantinedCount) 项低证据候选已自动隔离，不需要人工处理。"
     }
 
     private func synchronizeSelections() {
-        guard let project = currentProject else { selectedAssetID = nil; return }
-        if let selectedAssetID, project.assets.contains(where: { $0.id == selectedAssetID }) { return }
-        selectedAssetID = project.assets.first { $0.kind == selectedAssetKind && $0.reviewDecision != .rejected }?.id
+        guard currentProject != nil else {
+            selectedAssetID = nil
+            return
+        }
+        if let selectedAssetID,
+           filteredAssets.contains(where: { $0.id == selectedAssetID })
+        {
+            return
+        }
+        selectedAssetID = filteredAssets.first?.id
     }
 
-    private func mutateProject(_ body: (inout ArtDepartmentProject) -> Void) {
-        guard let id = currentProject?.id, let index = document.projects.firstIndex(where: { $0.id == id }) else { return }
+    private func mutateProject(
+        _ body: (inout ArtDepartmentProject) -> Void
+    ) {
+        guard let id = currentProject?.id,
+              let index = document.projects.firstIndex(where: { $0.id == id })
+        else { return }
         body(&document.projects[index])
         document.updatedAt = .now
     }
 
-    private func persist() async {
-        do { try await persistence.save(document) }
-        catch { errorMessage = error.localizedDescription }
+    private func migrateToAutomaticPipeline() {
+        document.schemaVersion = max(3, document.schemaVersion)
+        for projectIndex in document.projects.indices {
+            if document.projects[projectIndex].pipelineStage == .reviewing {
+                document.projects[projectIndex].pipelineStage = .adjudicating
+            }
+            for assetIndex in document.projects[projectIndex].assets.indices {
+                var asset = document.projects[projectIndex].assets[assetIndex]
+                if asset.reviewDecision == .pending {
+                    let exact = asset.sourceEvidence.contains {
+                        !$0.quote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    }
+                    asset.reviewDecision = exact && asset.validatedConfidence >= 0.68
+                        ? .accepted
+                        : .conflict
+                    if asset.verificationReport == nil {
+                        asset.verificationReport = AssetVerificationReport(
+                            engines: ["V2 evidence migration"],
+                            consensusCount: 1,
+                            exactEvidenceScore: exact ? 1 : 0,
+                            schemaCompleteness: asset.validatedConfidence,
+                            linguisticSupport: 0,
+                            deterministicSupport: asset.modelConfidence >= 0.99,
+                            reason: "旧数据按逐字证据和原置信度自动迁移。"
+                        )
+                    }
+                    document.projects[projectIndex].assets[assetIndex] = asset
+                }
+            }
+            if !document.projects[projectIndex].assets.isEmpty {
+                document.projects[projectIndex].pipelineStage = .completed
+            }
+        }
     }
 
-    private func runWork(_ operation: () async throws -> Void) async {
+    private func persist() async {
+        do {
+            try await persistence.save(document)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func runWork(
+        _ operation: () async throws -> Void
+    ) async {
         guard !isWorking else { return }
         isWorking = true
         progress = .idle
         errorMessage = nil
         defer { isWorking = false }
-        do { try await operation() }
-        catch {
-            mutateProject { $0.pipelineStage = .failed; $0.updatedAt = .now }
+        do {
+            try await operation()
+        } catch {
+            mutateProject {
+                $0.pipelineStage = .failed
+                $0.updatedAt = .now
+            }
             errorMessage = error.localizedDescription
             await persist()
         }

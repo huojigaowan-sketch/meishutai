@@ -1,42 +1,56 @@
-# 美术台 2.0
+# 美术台 3.0 · Apple 自动美术资产流水线
 
-美术台是一套面向影视美术部门的 macOS 原生工作台。2.0 版本重构了旧的“直接从任意文本猜资产”流程：任何剧本文本先经过大模型完整转换为标准 Final Draft/Fountain，再从确定的场景边界逐场提取场景、人物和道具，并为每项结果保存逐字证据、置信度和人工审阅状态。
+美术台是一套面向影视美术部门的 macOS 原生工作台。3.0 不再把低置信度结果交给人逐项确认，而是把准确性做成自动化系统属性：任意剧本先转为标准 Final Draft/Fountain，再由 Apple Foundation Models、content tagging、Natural Language、Vision、确定性解析器和可选远程模型共同完成场景、人物、道具的提取、核验、隔离和生产入库。
 
 ## 核心工作流
 
 ```text
-任意剧本文本
-    ↓ 证据单元覆盖校验
+TXT / Markdown / Fountain / FDX / PDF / 图片剧本
+    ↓ Apple 文档读取、OCR 与 SourceUnit 全覆盖
 标准 Final Draft / Fountain
-    ↓ 逐场结构化提取
-场景 / 人物 / 道具证据账本
-    ↓ 人工确认
-风格提示词选择与锁定
-    ↓ 大模型编译材质、构图、元素和连续性
-可审阅生图提示词
-    ↓ 火山方舟 Ark Images API
-文生图 / 参考图生图 / AO 白模 / 材质回绘 / 反打 / 队列设计
+    ↓ @Generable / @Guide / GenerationSchema
+逐场多引擎提取
+    ↓ Scene Heading + Character 确定性候选
+    ↓ Foundation Models general + contentTagging
+    ↓ Natural Language 实体与别名校验
+    ↓ 逐字 evidence + 多引擎共识
+自动通过的场景 / 人物 / 道具生产库
+    ↓ 低证据候选自动隔离，不阻塞、不分配人工任务
+用户锁定风格提示词 + Apple Vision 参考图签名
+    ↓ Apple GenerationSchema 生图计划
+火山方舟 Ark 文生图 / 图生图
 ```
 
-## 为什么先标准化剧本
+## 没有人工审阅步骤
 
-- 任意来源的剧本可能混用小说、分镜、聊天记录、Markdown、中文场号和非标准人物对白格式。
-- 标准化阶段为每段原文分配稳定 `SourceUnit ID`，模型必须完整回执全部 ID；缺失、重复或未知 ID 会使本轮失败，而不是静默继续。
-- 标准场景标题和 Final Draft 元素确定后，场景、人物和道具提取不再依赖模糊的全文切分。
-- FDX 导出由本地确定性 XML 生成，不让模型自由书写 Final Draft 文件。
+- 标准 `Scene Heading` 确定性建立场景资产。
+- 标准 `Character` 元素确定性建立说话人物资产。
+- 模型候选必须引用当前场景中的逐字子串。
+- Apple 本地模型、专用 content tagging、Natural Language 和可选远程模型形成自动共识。
+- 通过策略的结果直接进入生产资产库；证据不足的候选进入只读诊断区并自动排除在导出、生图和后续生产之外。
+- 诊断区用于观察系统行为，不要求用户逐项处理。
+
+## Apple 原生技术栈
+
+- **Foundation Models**：`SystemLanguageModel`、`LanguageModelSession`、`@Generable`、`@Guide`、`GenerationSchema`、`GeneratedContent(json:)`、`prewarm`。
+- **Foundation Models content tagging**：专用适配器提取动作、物体、地点和制作主题。
+- **Natural Language**：`NLTagger` 提取人名/地名/组织名；`NLEmbedding` 只在高相似度时自动归并别名。
+- **Vision Swift API**：`RecognizeTextRequest` 读取图片与扫描 PDF；`GenerateImageFeaturePrintRequest` 为风格参考图建立相似度签名并自动查重。
+- **PDFKit / AppKit**：PDF 文本与无文本页面渲染；原生 macOS 文件工作流。
+- **Swift Concurrency / Observation / CryptoKit / Keychain**：并行逐场处理、现代状态管理、来源指纹和安全密钥存储。
+
+Apple Foundation Models 的 `Generable` 类型会转换为 JSON schema。应用内所有结构化模型调用都以同一组 Apple 类型为权威接口：本地模型直接 guided generation；远程接口返回的 JSON 先转为 `GeneratedContent`，再解码为相同的 `Generable` 类型，不再维护第二套响应结构。
 
 ## 四个工作区
 
-1. **剧本标准化**：导入 TXT、Markdown、Fountain 或 FDX；生成可审阅、可编辑、可导出的标准剧本。
-2. **资产审阅**：按场景逐项核对场景、人物、道具；每项都展示逐字证据和校验置信度。
-3. **风格提示词库**：参考图、标题、用户精确提示词、标签和备注成对本地保存；用户提示词默认锁定。
-4. **生图工坊**：选择资产和风格卡，由大模型编译提示词，再调用火山方舟 Ark 文生图或参考图生图。
+1. **剧本标准化**：导入任意支持格式，一键完成 Final Draft 标准化和自动资产提取。
+2. **自动资产库**：只显示自动通过的场景、人物、道具及逐字证据；隔离候选只在可选诊断窗口中展示。
+3. **风格提示词库**：标题、用户精确提示词、标签、备注和参考图成对保存；提示词默认锁定，Vision 自动查重。
+4. **生图工坊**：资产和风格卡可以自动匹配，Apple Schema 生成材质、构图、元素、光影与锁定事实，再调用 Ark。
 
 ## 内置操作模板
 
-内置模板来自项目需求本身，不捆绑第三方图片：
-
-- 材质 / 构图 / 元素审阅
+- 材质 / 构图 / 元素分析
 - 十人同服装角色队列
 - AO 白模严格复刻
 - 白模材质回绘与人物三视图
@@ -44,18 +58,19 @@
 - 指定机位重构
 - 场景镜头反打
 
-用户应为需要高度一致性的风格自行上传有权使用的参考图和精确提示词。
+内置模板不捆绑来源不明的第三方图片。需要高一致性时，用户上传有权使用的参考图和精确提示词。
 
 ## API 配置
 
-在应用设置中配置：
+- Apple Foundation Models 是默认结构化提取核心，不需要 API Key。
+- DeepSeek 或其他 OpenAI 兼容接口是可选的双引擎增强/兜底；留空即可纯本地运行。
+- 远程模型必须通过相同 Apple `GenerationSchema` 适配器返回结构化数据。
+- 图像生成使用火山方舟 Ark Images API。
+- API Key 只写入 macOS Keychain。
 
-- 大语言模型：DeepSeek 或 OpenAI 兼容 `/chat/completions` 接口；
-- 图像生成：火山方舟 Ark Images API；
-- API Key 只写入 macOS Keychain；剧本、风格参考图和生成结果保存在应用支持目录。
+## 文档
 
-详见：
-
+- [`docs/APPLE_AUTOMATED_EXTRACTION_ARCHITECTURE.md`](docs/APPLE_AUTOMATED_EXTRACTION_ARCHITECTURE.md)
 - [`docs/ART_DEPARTMENT_V2_ARCHITECTURE.md`](docs/ART_DEPARTMENT_V2_ARCHITECTURE.md)
 - [`docs/EXTRACTION_ACCURACY_CONTRACT.md`](docs/EXTRACTION_ACCURACY_CONTRACT.md)
 - [`docs/STYLE_PROMPT_VAULT.md`](docs/STYLE_PROMPT_VAULT.md)
@@ -65,18 +80,19 @@
 
 - 平台：macOS 27+
 - UI：SwiftUI / AppKit
+- AI：Foundation Models + Natural Language + Vision
 - 项目：`美术台.xcodeproj`
 - Scheme：`美术台`
-- 新源码放在文件系统同步的 `美术台/` 目录，无需手动维护 PBX 文件列表。
+- 源码目录采用 Xcode 文件系统同步，无需手工维护 PBX 文件列表。
 
-## 验证重点
+## 最终本机验证重点
 
-最终本机验证应覆盖：
-
-1. 大体量文本分块后 SourceUnit 仍全部覆盖；
-2. 标准化失败时原文和上次成功结果不被覆盖；
-3. FDX 导入、Fountain 编辑和 FDX 导出可往返；
-4. 每项资产证据确实是对应场景的逐字子串；
-5. 低于 0.86 的结果不会自动标为已确认；
-6. 风格参考图与提示词重启后仍可读取；
-7. Ark 文生图、参考图生图、批量结果和错误响应均可恢复。
+1. Apple Intelligence 可用、未就绪和设备不支持三种状态；
+2. 纯 Apple 本地路线与 Apple + 远程双引擎路线；
+3. 超长文本分块后 SourceUnit 无缺失、重复或未知 ID；
+4. PDF 原生文本、扫描 PDF 和图片 OCR；
+5. FDX 导入、Fountain 编辑与 FDX 导出往返；
+6. 每项生产资产的 evidence 是对应场景逐字子串；
+7. 隔离候选不会进入资产 JSON、生图选择或生产统计；
+8. 风格参考图 Vision 查重和持久化；
+9. Ark 文生图、参考图生图、批量结果和错误恢复。

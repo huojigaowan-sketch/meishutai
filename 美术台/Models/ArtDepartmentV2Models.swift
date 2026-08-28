@@ -2,7 +2,7 @@ import Foundation
 
 nonisolated enum ArtWorkspaceSection: String, CaseIterable, Codable, Identifiable, Sendable {
     case script = "剧本标准化"
-    case assets = "资产审阅"
+    case assets = "自动资产库"
     case styles = "风格提示词库"
     case generation = "生图工坊"
 
@@ -11,21 +11,32 @@ nonisolated enum ArtWorkspaceSection: String, CaseIterable, Codable, Identifiabl
     var systemImage: String {
         switch self {
         case .script: "doc.text.magnifyingglass"
-        case .assets: "shippingbox.and.arrow.backward"
+        case .assets: "shippingbox.fill"
         case .styles: "photo.on.rectangle.angled"
         case .generation: "wand.and.stars.inverse"
         }
     }
 }
 
+/// Raw values remain compatible with V2 persisted workspaces. The visible title
+/// reflects the V3 automatic pipeline: no asset requires a person to approve it.
 nonisolated enum ScriptPipelineStage: String, Codable, Sendable {
     case source = "原始剧本"
     case normalizing = "标准化中"
     case canonical = "Final Draft 已就绪"
     case extracting = "提取中"
-    case reviewing = "等待审阅"
+    case adjudicating = "自动核验中"
+    case reviewing = "等待审阅" // Legacy V2 value; normalized to adjudicating on load.
     case completed = "资产已确认"
     case failed = "处理失败"
+
+    var title: String {
+        switch self {
+        case .reviewing, .adjudicating: "自动核验中"
+        case .completed: "资产已就绪"
+        default: rawValue
+        }
+    }
 }
 
 nonisolated enum ScreenplayElementKind: String, CaseIterable, Codable, Identifiable, Sendable {
@@ -68,7 +79,12 @@ nonisolated struct CanonicalParagraph: Codable, Hashable, Identifiable, Sendable
     var text: String
     var sourceUnitIDs: [String]
 
-    init(id: UUID = UUID(), element: ScreenplayElementKind, text: String, sourceUnitIDs: [String] = []) {
+    init(
+        id: UUID = UUID(),
+        element: ScreenplayElementKind,
+        text: String,
+        sourceUnitIDs: [String] = []
+    ) {
         self.id = id
         self.element = element
         self.text = text
@@ -84,7 +100,14 @@ nonisolated struct CanonicalScene: Codable, Hashable, Identifiable, Sendable {
     var paragraphs: [CanonicalParagraph]
     var sourceUnitIDs: [String]
 
-    init(id: UUID = UUID(), order: Int, heading: String, sceneKey: String, paragraphs: [CanonicalParagraph], sourceUnitIDs: [String]) {
+    init(
+        id: UUID = UUID(),
+        order: Int,
+        heading: String,
+        sceneKey: String,
+        paragraphs: [CanonicalParagraph],
+        sourceUnitIDs: [String]
+    ) {
         self.id = id
         self.order = order
         self.heading = heading
@@ -108,9 +131,12 @@ nonisolated struct ScriptNormalizationAudit: Codable, Hashable, Sendable {
     var completedAt: Date
 
     var isComplete: Bool {
-        sourceUnitCount > 0 && sourceUnitCount == coveredSourceUnitCount
-            && duplicateSourceUnitIDs.isEmpty && unknownSourceUnitIDs.isEmpty
-            && uncoveredSourceUnitIDs.isEmpty && sceneCount > 0
+        sourceUnitCount > 0
+            && sourceUnitCount == coveredSourceUnitCount
+            && duplicateSourceUnitIDs.isEmpty
+            && unknownSourceUnitIDs.isEmpty
+            && uncoveredSourceUnitIDs.isEmpty
+            && sceneCount > 0
     }
 }
 
@@ -118,7 +144,9 @@ nonisolated enum ProductionAssetKind: String, CaseIterable, Codable, Identifiabl
     case scene = "场景"
     case character = "人物"
     case prop = "道具"
+
     var id: String { rawValue }
+
     var systemImage: String {
         switch self {
         case .scene: "building.2.crop.circle"
@@ -128,11 +156,22 @@ nonisolated enum ProductionAssetKind: String, CaseIterable, Codable, Identifiabl
     }
 }
 
+/// Raw values preserve V2 decoding. These are automatic machine decisions, not
+/// buttons a person must press.
 nonisolated enum AssetReviewDecision: String, CaseIterable, Codable, Sendable {
     case pending = "待审阅"
     case accepted = "已确认"
     case rejected = "已排除"
     case conflict = "有冲突"
+
+    var title: String {
+        switch self {
+        case .pending: "自动核验中"
+        case .accepted: "自动通过"
+        case .rejected: "自动排除"
+        case .conflict: "隔离诊断"
+        }
+    }
 }
 
 nonisolated struct EvidenceQuote: Codable, Hashable, Identifiable, Sendable {
@@ -142,13 +181,56 @@ nonisolated struct EvidenceQuote: Codable, Hashable, Identifiable, Sendable {
     var quote: String
     var explanation: String
 
-    init(id: UUID = UUID(), sceneID: UUID, sceneHeading: String, quote: String, explanation: String) {
+    init(
+        id: UUID = UUID(),
+        sceneID: UUID,
+        sceneHeading: String,
+        quote: String,
+        explanation: String
+    ) {
         self.id = id
         self.sceneID = sceneID
         self.sceneHeading = sceneHeading
         self.quote = quote
         self.explanation = explanation
     }
+}
+
+nonisolated struct AssetVerificationReport: Codable, Hashable, Sendable {
+    var engines: [String]
+    var consensusCount: Int
+    var exactEvidenceScore: Double
+    var schemaCompleteness: Double
+    var linguisticSupport: Double
+    var deterministicSupport: Bool
+    var reason: String
+
+    var automaticallyUsable: Bool {
+        deterministicSupport
+            || (consensusCount >= 2 && exactEvidenceScore >= 0.75)
+            || (exactEvidenceScore == 1 && schemaCompleteness >= 0.72)
+    }
+}
+
+nonisolated struct AssetAutomationSummary: Codable, Hashable, Sendable {
+    var sceneCount: Int
+    var characterCount: Int
+    var propCount: Int
+    var usableCount: Int
+    var quarantinedCount: Int
+    var rejectedCount: Int
+    var engineNames: [String]
+    var elapsedMilliseconds: Int
+    var completedAt: Date
+}
+
+nonisolated struct AppleEngineStatusSnapshot: Codable, Hashable, Sendable {
+    var onDeviceAvailable: Bool
+    var supportsChinese: Bool
+    var contextSize: Int?
+    var remoteFallbackAvailable: Bool
+    var activeRoute: String
+    var detail: String
 }
 
 nonisolated struct ProductionAsset: Codable, Hashable, Identifiable, Sendable {
@@ -169,8 +251,28 @@ nonisolated struct ProductionAsset: Codable, Hashable, Identifiable, Sendable {
     var warnings: [String]
     var firstSceneOrder: Int
     var occurrenceCount: Int
+    var verificationReport: AssetVerificationReport?
 
-    init(id: UUID = UUID(), kind: ProductionAssetKind, canonicalName: String, aliases: [String] = [], summary: String, visualDescription: String, continuityState: String = "", materialNotes: String = "", compositionNotes: String = "", elementNotes: String = "", sourceEvidence: [EvidenceQuote], modelConfidence: Double, validatedConfidence: Double, reviewDecision: AssetReviewDecision = .pending, warnings: [String] = [], firstSceneOrder: Int, occurrenceCount: Int = 1) {
+    init(
+        id: UUID = UUID(),
+        kind: ProductionAssetKind,
+        canonicalName: String,
+        aliases: [String] = [],
+        summary: String,
+        visualDescription: String,
+        continuityState: String = "",
+        materialNotes: String = "",
+        compositionNotes: String = "",
+        elementNotes: String = "",
+        sourceEvidence: [EvidenceQuote],
+        modelConfidence: Double,
+        validatedConfidence: Double,
+        reviewDecision: AssetReviewDecision = .pending,
+        warnings: [String] = [],
+        firstSceneOrder: Int,
+        occurrenceCount: Int = 1,
+        verificationReport: AssetVerificationReport? = nil
+    ) {
         self.id = id
         self.kind = kind
         self.canonicalName = canonicalName
@@ -188,11 +290,21 @@ nonisolated struct ProductionAsset: Codable, Hashable, Identifiable, Sendable {
         self.warnings = warnings
         self.firstSceneOrder = firstSceneOrder
         self.occurrenceCount = occurrenceCount
+        self.verificationReport = verificationReport
     }
 
-    var requiresReview: Bool {
-        reviewDecision == .pending || reviewDecision == .conflict || validatedConfidence < 0.86 || !warnings.isEmpty
+    var isUsable: Bool {
+        reviewDecision == .accepted
+            && !canonicalName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && sourceEvidence.contains { !$0.quote.isEmpty }
     }
+
+    var isQuarantined: Bool {
+        reviewDecision == .conflict || reviewDecision == .pending
+    }
+
+    @available(*, deprecated, message: "V3 is fully automatic; inspect isQuarantined instead.")
+    var requiresReview: Bool { isQuarantined }
 }
 
 nonisolated enum StylePromptCategory: String, CaseIterable, Codable, Identifiable, Sendable {
@@ -205,6 +317,7 @@ nonisolated enum StylePromptCategory: String, CaseIterable, Codable, Identifiabl
     case repaint = "材质回绘"
     case camera = "机位与反打"
     case cleanup = "场景减噪"
+
     var id: String { rawValue }
 }
 
@@ -220,8 +333,24 @@ nonisolated struct StylePromptCard: Codable, Hashable, Identifiable, Sendable {
     var isBuiltIn: Bool
     var createdAt: Date
     var updatedAt: Date
+    var visionFingerprintBase64: String?
+    var visionAestheticScore: Double?
 
-    init(id: UUID = UUID(), title: String, prompt: String, category: StylePromptCategory, tags: [String] = [], notes: String = "", referenceImagePath: String? = nil, isPromptLocked: Bool = true, isBuiltIn: Bool = false, createdAt: Date = .now, updatedAt: Date = .now) {
+    init(
+        id: UUID = UUID(),
+        title: String,
+        prompt: String,
+        category: StylePromptCategory,
+        tags: [String] = [],
+        notes: String = "",
+        referenceImagePath: String? = nil,
+        isPromptLocked: Bool = true,
+        isBuiltIn: Bool = false,
+        createdAt: Date = .now,
+        updatedAt: Date = .now,
+        visionFingerprintBase64: String? = nil,
+        visionAestheticScore: Double? = nil
+    ) {
         self.id = id
         self.title = title
         self.prompt = prompt
@@ -233,6 +362,8 @@ nonisolated struct StylePromptCard: Codable, Hashable, Identifiable, Sendable {
         self.isBuiltIn = isBuiltIn
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.visionFingerprintBase64 = visionFingerprintBase64
+        self.visionAestheticScore = visionAestheticScore
     }
 }
 
@@ -245,6 +376,7 @@ nonisolated enum ImageGenerationMode: String, CaseIterable, Codable, Identifiabl
     case reverseShot = "镜头反打"
     case cameraRebuild = "指定机位重构"
     case cleanup = "场景减噪"
+
     var id: String { rawValue }
 }
 
@@ -262,7 +394,20 @@ nonisolated struct ArtPromptPlan: Codable, Hashable, Sendable {
     var chosenStyleCardIDs: [UUID]
     var rationale: String
 
-    static let empty = ArtPromptPlan(title: "", mode: .textToImage, subject: "", materials: "", composition: "", elements: "", lighting: "", positivePrompt: "", negativePrompt: "", lockedFacts: [], chosenStyleCardIDs: [], rationale: "")
+    static let empty = ArtPromptPlan(
+        title: "",
+        mode: .textToImage,
+        subject: "",
+        materials: "",
+        composition: "",
+        elements: "",
+        lighting: "",
+        positivePrompt: "",
+        negativePrompt: "",
+        lockedFacts: [],
+        chosenStyleCardIDs: [],
+        rationale: ""
+    )
 }
 
 nonisolated struct ImageGenerationRecipe: Codable, Hashable, Sendable {
@@ -270,7 +415,13 @@ nonisolated struct ImageGenerationRecipe: Codable, Hashable, Sendable {
     var size: String
     var maxImages: Int
     var watermark: Bool
-    static let arkDefault = ImageGenerationRecipe(model: "doubao-seedream-4-0-250828", size: "2K", maxImages: 1, watermark: false)
+
+    static let arkDefault = ImageGenerationRecipe(
+        model: "doubao-seedream-4-0-250828",
+        size: "2K",
+        maxImages: 1,
+        watermark: false
+    )
 }
 
 nonisolated struct GeneratedImageRecord: Codable, Hashable, Identifiable, Sendable {
@@ -284,7 +435,17 @@ nonisolated struct GeneratedImageRecord: Codable, Hashable, Identifiable, Sendab
     var providerRequestID: String?
     var createdAt: Date
 
-    init(id: UUID = UUID(), projectID: UUID, assetID: UUID?, styleCardIDs: [UUID], promptPlan: ArtPromptPlan, recipe: ImageGenerationRecipe, localImagePath: String, providerRequestID: String? = nil, createdAt: Date = .now) {
+    init(
+        id: UUID = UUID(),
+        projectID: UUID,
+        assetID: UUID?,
+        styleCardIDs: [UUID],
+        promptPlan: ArtPromptPlan,
+        recipe: ImageGenerationRecipe,
+        localImagePath: String,
+        providerRequestID: String? = nil,
+        createdAt: Date = .now
+    ) {
         self.id = id
         self.projectID = projectID
         self.assetID = assetID
@@ -311,8 +472,26 @@ nonisolated struct ArtDepartmentProject: Codable, Hashable, Identifiable, Sendab
     var generatedImages: [GeneratedImageRecord]
     var createdAt: Date
     var updatedAt: Date
+    var automationSummary: AssetAutomationSummary?
+    var engineStatus: AppleEngineStatusSnapshot?
 
-    init(id: UUID = UUID(), title: String = "未命名美术项目", sourceFileName: String? = nil, sourceText: String = "", sourceFingerprint: String = "", pipelineStage: ScriptPipelineStage = .source, canonicalScenes: [CanonicalScene] = [], canonicalFountain: String = "", normalizationAudit: ScriptNormalizationAudit? = nil, assets: [ProductionAsset] = [], generatedImages: [GeneratedImageRecord] = [], createdAt: Date = .now, updatedAt: Date = .now) {
+    init(
+        id: UUID = UUID(),
+        title: String = "未命名美术项目",
+        sourceFileName: String? = nil,
+        sourceText: String = "",
+        sourceFingerprint: String = "",
+        pipelineStage: ScriptPipelineStage = .source,
+        canonicalScenes: [CanonicalScene] = [],
+        canonicalFountain: String = "",
+        normalizationAudit: ScriptNormalizationAudit? = nil,
+        assets: [ProductionAsset] = [],
+        generatedImages: [GeneratedImageRecord] = [],
+        createdAt: Date = .now,
+        updatedAt: Date = .now,
+        automationSummary: AssetAutomationSummary? = nil,
+        engineStatus: AppleEngineStatusSnapshot? = nil
+    ) {
         self.id = id
         self.title = title
         self.sourceFileName = sourceFileName
@@ -326,7 +505,12 @@ nonisolated struct ArtDepartmentProject: Codable, Hashable, Identifiable, Sendab
         self.generatedImages = generatedImages
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.automationSummary = automationSummary
+        self.engineStatus = engineStatus
     }
+
+    var usableAssets: [ProductionAsset] { assets.filter(\.isUsable) }
+    var quarantinedAssets: [ProductionAsset] { assets.filter(\.isQuarantined) }
 }
 
 nonisolated struct ArtDepartmentWorkspaceDocument: Codable, Hashable, Sendable {
@@ -335,7 +519,12 @@ nonisolated struct ArtDepartmentWorkspaceDocument: Codable, Hashable, Sendable {
     var styleCards: [StylePromptCard]
     var updatedAt: Date
 
-    static let empty = ArtDepartmentWorkspaceDocument(schemaVersion: 2, projects: [], styleCards: BuiltInStylePromptCatalog.cards, updatedAt: .now)
+    static let empty = ArtDepartmentWorkspaceDocument(
+        schemaVersion: 3,
+        projects: [],
+        styleCards: BuiltInStylePromptCatalog.cards,
+        updatedAt: .now
+    )
 }
 
 nonisolated enum ArtDepartmentV2Error: LocalizedError {
@@ -343,11 +532,13 @@ nonisolated enum ArtDepartmentV2Error: LocalizedError {
     case emptySource
     case missingLLMConfiguration
     case missingArkConfiguration
+    case foundationModelUnavailable(String)
     case invalidModelResponse(String)
     case incompleteCoverage([String])
     case noCanonicalScenes
     case noSelectedAsset
     case noSelectedStyle
+    case noUsableAssets
     case imageDataMissing
     case unsupportedFile
 
@@ -355,15 +546,17 @@ nonisolated enum ArtDepartmentV2Error: LocalizedError {
         switch self {
         case .noProject: "请先创建或选择一个美术项目。"
         case .emptySource: "请先导入或粘贴剧本文本。"
-        case .missingLLMConfiguration: "请先在设置中配置大语言模型 API。"
+        case .missingLLMConfiguration: "Apple 本地模型不可用，且没有配置远程模型兜底。"
         case .missingArkConfiguration: "请先在设置中配置火山方舟 Ark 生图 API。"
-        case .invalidModelResponse(let detail): "模型结果无法通过结构校验：\(detail)"
+        case .foundationModelUnavailable(let detail): "Apple Foundation Models 当前不可用：\(detail)"
+        case .invalidModelResponse(let detail): "模型结果无法通过 Apple GenerationSchema 与证据校验：\(detail)"
         case .incompleteCoverage(let ids): "剧本标准化未覆盖全部原文段落：\(ids.joined(separator: ", "))"
         case .noCanonicalScenes: "请先把原始剧本标准化为 Final Draft/Fountain 场景。"
-        case .noSelectedAsset: "请先选择一个已提取的场景、人物或道具。"
-        case .noSelectedStyle: "请先选择一张风格提示词卡。"
+        case .noSelectedAsset: "当前没有自动通过的场景、人物或道具。"
+        case .noSelectedStyle: "当前没有可用的风格提示词卡。"
+        case .noUsableAssets: "自动核验没有找到具有逐字证据的可用资产。"
         case .imageDataMissing: "参考图或生成结果的图像数据不存在。"
-        case .unsupportedFile: "当前文件格式不受支持。请使用 TXT、Markdown、Fountain 或 FDX。"
+        case .unsupportedFile: "当前文件格式不受支持。请使用 TXT、Markdown、Fountain、FDX、PDF 或图片。"
         }
     }
 }

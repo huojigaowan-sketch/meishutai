@@ -26,8 +26,14 @@ final class ArtDepartmentV2Tests: XCTestCase {
         let scenes = CanonicalFountainParser.parse(text)
         XCTAssertEqual(scenes.count, 2)
         XCTAssertEqual(scenes.first?.heading, "内. 厨房 - 夜")
-        XCTAssertTrue(scenes.first?.paragraphs.contains(where: { $0.element == .character && $0.text == "女儿" }) == true)
-        XCTAssertTrue(scenes.first?.paragraphs.contains(where: { $0.element == .dialogue }) == true)
+        XCTAssertTrue(
+            scenes.first?.paragraphs.contains(where: {
+                $0.element == .character && $0.text == "女儿"
+            }) == true
+        )
+        XCTAssertTrue(
+            scenes.first?.paragraphs.contains(where: { $0.element == .dialogue }) == true
+        )
     }
 
     func testFDXExporterUsesDeterministicElementTypes() {
@@ -61,17 +67,62 @@ final class ArtDepartmentV2Tests: XCTestCase {
         XCTAssertTrue(prompts.contains("元素"))
     }
 
-    func testLowConfidenceAssetRequiresReview() {
+    func testProductionAssetIsAutomaticallyUsableWithoutHumanApproval() {
+        let report = AssetVerificationReport(
+            engines: ["Apple Foundation Models", "Apple contentTagging"],
+            consensusCount: 2,
+            exactEvidenceScore: 1,
+            schemaCompleteness: 0.9,
+            linguisticSupport: 0.8,
+            deterministicSupport: false,
+            reason: "双引擎与逐字证据一致"
+        )
         let asset = ProductionAsset(
             kind: .prop,
             canonicalName: "护照",
             summary: "关键道具",
             visualDescription: "一本护照",
-            sourceEvidence: [EvidenceQuote(sceneID: UUID(), sceneHeading: "内. 厨房 - 夜", quote: "护照", explanation: "逐字证据")],
-            modelConfidence: 0.7,
-            validatedConfidence: 0.78,
+            sourceEvidence: [
+                EvidenceQuote(
+                    sceneID: UUID(),
+                    sceneHeading: "内. 厨房 - 夜",
+                    quote: "护照",
+                    explanation: "逐字证据"
+                )
+            ],
+            modelConfidence: 0.84,
+            validatedConfidence: 0.82,
+            reviewDecision: .accepted,
+            firstSceneOrder: 0,
+            verificationReport: report
+        )
+        XCTAssertTrue(report.automaticallyUsable)
+        XCTAssertTrue(asset.isUsable)
+        XCTAssertFalse(asset.isQuarantined)
+        XCTAssertEqual(asset.reviewDecision.title, "自动通过")
+    }
+
+    func testLowEvidenceCandidateIsQuarantinedNotAssignedToHuman() {
+        let asset = ProductionAsset(
+            kind: .prop,
+            canonicalName: "疑似物件",
+            summary: "证据不足",
+            visualDescription: "",
+            sourceEvidence: [],
+            modelConfidence: 0.3,
+            validatedConfidence: 0.25,
+            reviewDecision: .conflict,
+            warnings: ["自动隔离"],
             firstSceneOrder: 0
         )
-        XCTAssertTrue(asset.requiresReview)
+        XCTAssertTrue(asset.isQuarantined)
+        XCTAssertFalse(asset.isUsable)
+        XCTAssertEqual(asset.reviewDecision.title, "隔离诊断")
+    }
+
+    func testWorkspaceSchemaIsAutomaticV3() {
+        XCTAssertEqual(ArtDepartmentWorkspaceDocument.empty.schemaVersion, 3)
+        XCTAssertEqual(ArtWorkspaceSection.assets.rawValue, "自动资产库")
+        XCTAssertEqual(ScriptPipelineStage.completed.title, "资产已就绪")
     }
 }

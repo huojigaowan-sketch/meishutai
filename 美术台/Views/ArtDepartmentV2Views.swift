@@ -10,10 +10,17 @@ struct ArtDepartmentV2RootView: View {
     @State private var isImportingGenerationReference = false
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
+    private var scriptImportTypes: [UTType] {
+        var values: [UTType] = [.plainText, .xml, .pdf, .image]
+        if let fdx = UTType(filenameExtension: "fdx") { values.append(fdx) }
+        if let markdown = UTType(filenameExtension: "md") { values.append(markdown) }
+        return values
+    }
+
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             sidebar
-                .navigationSplitViewColumnWidth(min: 220, ideal: 250, max: 300)
+                .navigationSplitViewColumnWidth(min: 210, ideal: 245, max: 290)
         } detail: {
             detail
         }
@@ -35,7 +42,7 @@ struct ArtDepartmentV2RootView: View {
         }
         .fileImporter(
             isPresented: $isImportingScript,
-            allowedContentTypes: [.plainText, .xml, UTType(filenameExtension: "fdx") ?? .data],
+            allowedContentTypes: scriptImportTypes,
             allowsMultipleSelection: false
         ) { result in
             guard let url = try? result.get().first else { return }
@@ -52,10 +59,16 @@ struct ArtDepartmentV2RootView: View {
         .sheet(isPresented: $isAddingStyle) {
             StyleCardEditorView(store: store) { isAddingStyle = false }
         }
-        .alert("无法完成", isPresented: Binding(
-            get: { store.errorMessage != nil },
-            set: { if !$0 { store.errorMessage = nil } }
-        )) {
+        .sheet(isPresented: $store.showsDiagnostics) {
+            AutomationDiagnosticsView(store: store)
+        }
+        .alert(
+            "无法完成",
+            isPresented: Binding(
+                get: { store.errorMessage != nil },
+                set: { if !$0 { store.errorMessage = nil } }
+            )
+        ) {
             Button("好", role: .cancel) { store.errorMessage = nil }
         } message: {
             Text(store.errorMessage ?? "")
@@ -79,13 +92,15 @@ struct ArtDepartmentV2RootView: View {
             .padding(18)
 
             List {
-                Section("工作流") {
+                Section("自动工作流") {
                     ForEach(ArtWorkspaceSection.allCases) { section in
                         Button {
                             store.selectedSection = section
                         } label: {
                             Label(section.rawValue, systemImage: section.systemImage)
-                                .foregroundStyle(store.selectedSection == section ? .primary : .secondary)
+                                .foregroundStyle(
+                                    store.selectedSection == section ? .primary : .secondary
+                                )
                         }
                         .buttonStyle(.plain)
                     }
@@ -96,12 +111,18 @@ struct ArtDepartmentV2RootView: View {
                         Button {
                             store.selectProject(project.id)
                         } label: {
-                            HStack {
-                                Image(systemName: project.id == store.currentProject?.id ? "checkmark.circle.fill" : "circle")
-                                    .foregroundStyle(project.id == store.currentProject?.id ? .blue : .secondary)
+                            HStack(spacing: 9) {
+                                Image(
+                                    systemName: project.id == store.currentProject?.id
+                                        ? "checkmark.circle.fill"
+                                        : "circle"
+                                )
+                                .foregroundStyle(
+                                    project.id == store.currentProject?.id ? .blue : .secondary
+                                )
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(project.title).lineLimit(1)
-                                    Text(project.pipelineStage.rawValue)
+                                    Text(project.pipelineStage.title)
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
                                 }
@@ -116,8 +137,12 @@ struct ArtDepartmentV2RootView: View {
             HStack {
                 Button("新建", systemImage: "plus") { store.addProject() }
                 Spacer()
-                Button(role: .destructive) { store.deleteCurrentProject() } label: { Image(systemName: "trash") }
-                    .disabled(store.projects.count <= 1)
+                Button(role: .destructive) {
+                    store.deleteCurrentProject()
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .disabled(store.projects.count <= 1)
             }
             .buttonStyle(.borderless)
             .padding(14)
@@ -127,14 +152,19 @@ struct ArtDepartmentV2RootView: View {
     @ViewBuilder
     private var detail: some View {
         ZStack {
-            Color(nsColor: .underPageBackgroundColor).ignoresSafeArea()
             switch store.selectedSection {
             case .script:
-                ScriptNormalizationWorkspace(store: store, onImport: { isImportingScript = true })
+                ScriptNormalizationWorkspace(
+                    store: store,
+                    onImport: { isImportingScript = true }
+                )
             case .assets:
-                AssetReviewWorkspace(store: store)
+                AutomaticAssetLibraryWorkspace(store: store)
             case .styles:
-                StyleVaultWorkspace(store: store, onAdd: { isAddingStyle = true })
+                StyleVaultWorkspace(
+                    store: store,
+                    onAdd: { isAddingStyle = true }
+                )
             case .generation:
                 GenerationStudioWorkspace(
                     store: store,
@@ -148,8 +178,12 @@ struct ArtDepartmentV2RootView: View {
                     Label(notice, systemImage: "checkmark.circle.fill")
                         .font(.callout)
                     Spacer()
-                    Button { store.noticeMessage = nil } label: { Image(systemName: "xmark") }
-                        .buttonStyle(.borderless)
+                    Button {
+                        store.noticeMessage = nil
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                    .buttonStyle(.borderless)
                 }
                 .padding(12)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
@@ -159,10 +193,11 @@ struct ArtDepartmentV2RootView: View {
     }
 }
 
+// MARK: - Script pipeline
+
 private struct ScriptNormalizationWorkspace: View {
     @Bindable var store: ArtDepartmentV2Store
     let onImport: () -> Void
-    @State private var selectedEditor = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -175,22 +210,29 @@ private struct ScriptNormalizationWorkspace: View {
                 }
                 pipelineFooter(project)
             } else {
-                ContentUnavailableView("没有项目", systemImage: "doc.badge.plus", description: Text("新建项目后导入任意格式的剧本文本。"))
+                ContentUnavailableView(
+                    "没有项目",
+                    systemImage: "doc.badge.plus",
+                    description: Text("新建项目后导入任意格式的剧本。")
+                )
             }
         }
     }
 
     private var header: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("剧本标准化")
+                Text("剧本标准化与自动提取")
                     .font(.system(.largeTitle, design: .rounded, weight: .bold))
-                Text("先把任意剧本文本完整转换为标准 Final Draft/Fountain，再逐场提取场景、人物和道具。")
+                Text("Apple GenerationSchema 先建立标准 Final Draft，再由多引擎自动完成场景、人物与道具资产库。")
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            if let status = store.activeEngineStatus {
+                EngineStatusBadge(status: status)
+            }
             Button("导入剧本", systemImage: "doc.badge.plus", action: onImport)
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.bordered)
         }
         .padding(22)
     }
@@ -205,8 +247,8 @@ private struct ScriptNormalizationWorkspace: View {
             .font(.system(.body, design: .monospaced))
             .scrollContentBackground(.hidden)
             .padding(12)
-            .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
-            Text("\(project.sourceText.count.formatted()) 字符 · 原文不会被模型覆盖")
+            .background(.background, in: RoundedRectangle(cornerRadius: 12))
+            Text("\(project.sourceText.count.formatted()) 字符 · TXT / Markdown / Fountain / FDX / PDF / 图片")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -224,18 +266,20 @@ private struct ScriptNormalizationWorkspace: View {
             .font(.system(.body, design: .monospaced))
             .scrollContentBackground(.hidden)
             .padding(12)
-            .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
+            .background(.background, in: RoundedRectangle(cornerRadius: 12))
             if let audit = project.normalizationAudit {
                 Label(
                     audit.isComplete
-                        ? "证据覆盖 \(audit.coveredSourceUnitCount)/\(audit.sourceUnitCount) · 无静默丢失"
+                        ? "SourceUnit 全覆盖 \(audit.coveredSourceUnitCount)/\(audit.sourceUnitCount) · \(audit.model)"
                         : "标准化覆盖不完整",
-                    systemImage: audit.isComplete ? "checkmark.shield.fill" : "exclamationmark.shield.fill"
+                    systemImage: audit.isComplete
+                        ? "checkmark.shield.fill"
+                        : "exclamationmark.shield.fill"
                 )
                 .font(.caption)
                 .foregroundStyle(audit.isComplete ? .green : .orange)
             } else {
-                Text("完成标准化后，这里会显示可审阅、可导出的正式剧本。")
+                Text("模型输出必须通过 Apple GenerationSchema 与完整覆盖校验，才会显示在这里。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -250,29 +294,48 @@ private struct ScriptNormalizationWorkspace: View {
             Image(systemName: "arrow.right")
             StageBadge(number: 2, title: "Final Draft", active: !project.canonicalScenes.isEmpty)
             Image(systemName: "arrow.right")
-            StageBadge(number: 3, title: "资产证据", active: !project.assets.isEmpty)
+            StageBadge(number: 3, title: "自动资产库", active: !project.usableAssets.isEmpty)
             Spacer()
 
             Menu {
-                Button("导出 Fountain") { export(data: store.fountainExportData(), name: "\(project.title).fountain") }
-                Button("导出 Final Draft FDX") { export(data: store.fdxExportData(), name: "\(project.title).fdx") }
-                Button("导出已确认资产 JSON") { export(data: store.assetJSONExportData(), name: "\(project.title)-assets.json") }
+                Button("导出 Fountain") {
+                    export(data: store.fountainExportData(), name: "\(project.title).fountain")
+                }
+                Button("导出 Final Draft FDX") {
+                    export(data: store.fdxExportData(), name: "\(project.title).fdx")
+                }
+                Button("导出生产资产 JSON") {
+                    export(data: store.assetJSONExportData(), name: "\(project.title)-assets.json")
+                }
             } label: {
                 Label("导出", systemImage: "square.and.arrow.up")
             }
             .disabled(project.canonicalScenes.isEmpty)
 
-            Button("标准化为 Final Draft", systemImage: "text.badge.checkmark") {
-                Task { await store.normalizeCurrentScript() }
+            Menu {
+                Button("只标准化 Final Draft") {
+                    Task { await store.normalizeCurrentScript() }
+                }
+                Button("从现有 Final Draft 重新提取") {
+                    Task {
+                        await store.extractCurrentAssets()
+                        store.selectedSection = .assets
+                    }
+                }
+                .disabled(project.canonicalScenes.isEmpty)
+            } label: {
+                Label("分步运行", systemImage: "ellipsis.circle")
             }
-            .buttonStyle(.bordered)
-            .disabled(store.isWorking || project.sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .disabled(store.isWorking)
 
-            Button("提取并建立证据账本", systemImage: "checklist.checked") {
-                Task { await store.extractCurrentAssets(); store.selectedSection = .assets }
+            Button("一键完成标准化与提取", systemImage: "bolt.fill") {
+                Task { await store.runFullPipeline() }
             }
             .buttonStyle(.borderedProminent)
-            .disabled(store.isWorking || project.canonicalScenes.isEmpty)
+            .disabled(
+                store.isWorking
+                    || project.sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            )
         }
         .padding(16)
         .background(.ultraThinMaterial)
@@ -292,8 +355,35 @@ private struct ScriptNormalizationWorkspace: View {
         panel.nameFieldStringValue = name
         panel.canCreateDirectories = true
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        do { try data.write(to: url, options: .atomic); NSWorkspace.shared.activateFileViewerSelecting([url]) }
-        catch { store.errorMessage = error.localizedDescription }
+        do {
+            try data.write(to: url, options: .atomic)
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        } catch {
+            store.errorMessage = error.localizedDescription
+        }
+    }
+}
+
+private struct EngineStatusBadge: View {
+    let status: AppleEngineStatusSnapshot
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 3) {
+            Label(
+                status.activeRoute,
+                systemImage: status.onDeviceAvailable
+                    ? "apple.intelligence"
+                    : "network"
+            )
+            .font(.caption.weight(.semibold))
+            Text(status.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .frame(maxWidth: 260, alignment: .trailing)
+        }
+        .padding(10)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
     }
 }
 
@@ -301,6 +391,7 @@ private struct StageBadge: View {
     let number: Int
     let title: String
     let active: Bool
+
     var body: some View {
         Label("\(number). \(title)", systemImage: active ? "checkmark.circle.fill" : "circle")
             .font(.caption.weight(.semibold))
@@ -308,63 +399,88 @@ private struct StageBadge: View {
     }
 }
 
-private struct AssetReviewWorkspace: View {
+// MARK: - Automatic asset library
+
+private struct AutomaticAssetLibraryWorkspace: View {
     @Bindable var store: ArtDepartmentV2Store
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("资产审阅")
-                        .font(.system(.largeTitle, design: .rounded, weight: .bold))
-                    Text("所有结果都绑定标准场景和逐字证据；低置信度不会自动通过。")
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Picker("资产类型", selection: $store.selectedAssetKind) {
-                    ForEach(ProductionAssetKind.allCases) { kind in Text(kind.rawValue).tag(kind) }
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 300)
-                .onChange(of: store.selectedAssetKind) { _, _ in store.selectedAssetID = store.filteredAssets.first?.id }
-            }
-            .padding(22)
+            header
             Divider()
-
             HSplitView {
                 List(store.filteredAssets, selection: $store.selectedAssetID) { asset in
-                    AssetListRow(asset: asset).tag(asset.id)
+                    AutomaticAssetRow(asset: asset).tag(asset.id)
                 }
                 .frame(minWidth: 280, idealWidth: 340)
 
                 if let asset = store.selectedAsset {
-                    AssetReviewDetail(asset: asset) { store.updateAsset($0) } onDecision: {
-                        store.setAssetDecision($0, assetID: asset.id)
-                    }
-                    .id(asset.id)
+                    AutomaticAssetDetail(asset: asset)
+                        .id(asset.id)
                 } else {
-                    ContentUnavailableView("没有可审阅资产", systemImage: "shippingbox", description: Text("先完成 Final Draft 标准化和逐场提取。"))
+                    ContentUnavailableView(
+                        "没有自动通过的资产",
+                        systemImage: "shippingbox",
+                        description: Text("运行剧本标准化与自动提取。低证据候选会自动隔离。")
+                    )
                 }
             }
         }
     }
+
+    private var header: some View {
+        HStack(spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("自动资产库")
+                    .font(.system(.largeTitle, design: .rounded, weight: .bold))
+                if let summary = store.currentProject?.automationSummary {
+                    Text("自动通过 \(summary.usableCount) 项 · 隔离 \(summary.quarantinedCount) 项 · 无需人工审阅")
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("只有通过逐字证据、Apple Schema、多引擎共识与语言学校验的结果进入生产库。")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+            if !store.diagnosticAssets.isEmpty {
+                Button("查看自动诊断 \(store.diagnosticAssets.count)", systemImage: "waveform.path.ecg") {
+                    store.showsDiagnostics = true
+                }
+                .buttonStyle(.bordered)
+            }
+            Picker("资产类型", selection: $store.selectedAssetKind) {
+                ForEach(ProductionAssetKind.allCases) { kind in
+                    Text(kind.rawValue).tag(kind)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 300)
+            .onChange(of: store.selectedAssetKind) { _, _ in
+                store.selectedAssetID = store.filteredAssets.first?.id
+            }
+        }
+        .padding(22)
+    }
 }
 
-private struct AssetListRow: View {
+private struct AutomaticAssetRow: View {
     let asset: ProductionAsset
+
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack {
                 Label(asset.canonicalName, systemImage: asset.kind.systemImage)
                     .font(.headline)
                 Spacer()
-                Text(asset.validatedConfidence, format: .percent.precision(.fractionLength(0)))
-                    .font(.caption.monospacedDigit().weight(.semibold))
-                    .foregroundStyle(asset.validatedConfidence >= 0.86 ? .green : .orange)
+                Image(systemName: "checkmark.shield.fill")
+                    .foregroundStyle(.green)
             }
-            Text(asset.summary).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+            Text(asset.summary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
             HStack {
-                Text(asset.reviewDecision.rawValue)
+                Text(asset.reviewDecision.title)
                 Text("·")
                 Text("\(asset.sourceEvidence.count) 条证据")
                 Text("·")
@@ -377,92 +493,151 @@ private struct AssetListRow: View {
     }
 }
 
-private struct AssetReviewDetail: View {
-    @State var asset: ProductionAsset
-    let onUpdate: (ProductionAsset) -> Void
-    let onDecision: (AssetReviewDecision) -> Void
+private struct AutomaticAssetDetail: View {
+    let asset: ProductionAsset
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(asset.kind.rawValue).font(.caption.weight(.bold)).foregroundStyle(.secondary)
-                        TextField("资产名称", text: $asset.canonicalName)
+                        Text(asset.kind.rawValue)
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.secondary)
+                        Text(asset.canonicalName)
                             .font(.system(.title, design: .rounded, weight: .bold))
-                            .textFieldStyle(.plain)
+                        if !asset.aliases.isEmpty {
+                            Text("别名：\(asset.aliases.joined(separator: "、"))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     Spacer()
-                    confidenceBadge
+                    VerificationBadge(asset: asset)
                 }
 
-                editor("摘要", text: $asset.summary)
-                editor("视觉描述", text: $asset.visualDescription)
-                editor("连续性状态", text: $asset.continuityState)
+                readOnlyField("摘要", value: asset.summary)
+                readOnlyField("视觉描述", value: asset.visualDescription)
+                readOnlyField("连续性状态", value: asset.continuityState)
 
                 HStack(alignment: .top, spacing: 12) {
-                    editor("材质", text: $asset.materialNotes)
-                    editor("构图", text: $asset.compositionNotes)
-                    editor("元素", text: $asset.elementNotes)
+                    readOnlyField("材质", value: asset.materialNotes)
+                    readOnlyField("构图", value: asset.compositionNotes)
+                    readOnlyField("元素", value: asset.elementNotes)
                 }
 
-                if !asset.warnings.isEmpty {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Label("需要复核", systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange).font(.headline)
-                        Text(asset.warnings.map { "• \($0)" }.joined(separator: "\n"))
+                if let report = asset.verificationReport {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("自动核验链", systemImage: "cpu")
+                            .font(.headline)
+                        Text(report.engines.joined(separator: " · "))
+                            .font(.callout)
+                        Text(report.reason)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
                     }
                     .padding(14)
-                    .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+                    .background(.blue.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
                 }
 
                 Text("逐字证据").font(.headline)
                 ForEach(asset.sourceEvidence) { evidence in
                     VStack(alignment: .leading, spacing: 7) {
-                        Text(evidence.sceneHeading).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                        Text("“\(evidence.quote)”").font(.body.monospaced()).textSelection(.enabled)
-                        Text(evidence.explanation).font(.caption).foregroundStyle(.secondary)
+                        Text(evidence.sceneHeading)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        Text("“\(evidence.quote)”")
+                            .font(.body.monospaced())
+                            .textSelection(.enabled)
+                        Text(evidence.explanation)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                     .padding(14)
                     .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
                 }
-
-                HStack {
-                    Button("排除", role: .destructive) { onDecision(.rejected) }
-                    Spacer()
-                    Button("保存修改") { onUpdate(asset) }
-                        .buttonStyle(.bordered)
-                    Button("确认资产") { onUpdate(asset); onDecision(.accepted) }
-                        .buttonStyle(.borderedProminent)
-                }
             }
             .padding(24)
-            .frame(maxWidth: 820)
+            .frame(maxWidth: 860)
             .frame(maxWidth: .infinity)
         }
     }
 
-    private var confidenceBadge: some View {
-        VStack(alignment: .trailing, spacing: 3) {
-            Text(asset.validatedConfidence, format: .percent.precision(.fractionLength(0)))
-                .font(.title2.monospacedDigit().weight(.bold))
-            Text("证据校验置信度").font(.caption).foregroundStyle(.secondary)
-        }
-        .padding(12)
-        .background((asset.validatedConfidence >= 0.86 ? Color.green : Color.orange).opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
-    }
-
-    private func editor(_ title: String, text: Binding<String>) -> some View {
+    private func readOnlyField(_ title: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-            TextEditor(text: text)
-                .frame(minHeight: 70)
-                .padding(8)
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Text(value.isEmpty ? "—" : value)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .padding(10)
                 .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 9))
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 }
+
+private struct VerificationBadge: View {
+    let asset: ProductionAsset
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 3) {
+            Text(asset.validatedConfidence, format: .percent.precision(.fractionLength(0)))
+                .font(.title2.monospacedDigit().weight(.bold))
+            Text("自动核验得分")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .background(.green.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+private struct AutomationDiagnosticsView: View {
+    @Bindable var store: ArtDepartmentV2Store
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("自动隔离诊断")
+                        .font(.title2.weight(.bold))
+                    Text("这些候选不会进入生产资产库，也不需要人工处理。")
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("完成") { store.showsDiagnostics = false }
+                    .keyboardShortcut(.cancelAction)
+            }
+            .padding(18)
+            Divider()
+            List(store.diagnosticAssets) { asset in
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack {
+                        Label(asset.canonicalName, systemImage: asset.kind.systemImage)
+                        Spacer()
+                        Text(asset.reviewDecision.title)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.orange)
+                    }
+                    Text(asset.verificationReport?.reason ?? asset.warnings.joined(separator: "；"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if let evidence = asset.sourceEvidence.first {
+                        Text("“\(evidence.quote)”")
+                            .font(.caption.monospaced())
+                            .textSelection(.enabled)
+                    }
+                }
+                .padding(.vertical, 5)
+            }
+        }
+        .frame(minWidth: 720, idealWidth: 860, minHeight: 520, idealHeight: 650)
+    }
+}
+
+// MARK: - Style prompt vault
 
 private struct StyleVaultWorkspace: View {
     @Bindable var store: ArtDepartmentV2Store
@@ -474,7 +649,7 @@ private struct StyleVaultWorkspace: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("风格提示词库")
                         .font(.system(.largeTitle, design: .rounded, weight: .bold))
-                    Text("参考图与用户提供的精确提示词成对保存；提示词默认锁定，不由模型擅自改写。")
+                    Text("参考图与用户精确提示词成对保存；Apple Vision 自动查重，提示词默认锁定。")
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -485,9 +660,16 @@ private struct StyleVaultWorkspace: View {
             Divider()
 
             ScrollView {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 300, maximum: 390), spacing: 14)], spacing: 14) {
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 300, maximum: 390), spacing: 14)],
+                    spacing: 14
+                ) {
                     ForEach(store.styleCards) { card in
-                        StyleCardView(card: card, imageURL: store.imageURL(for: card.referenceImagePath)) {
+                        StyleCardView(
+                            card: card,
+                            imageURL: store.imageURL(for: card.referenceImagePath),
+                            selected: store.selectedStyleCardIDs.contains(card.id)
+                        ) {
                             store.toggleStyleSelection(card.id)
                         } onDelete: {
                             store.deleteStyleCard(card.id)
@@ -503,6 +685,7 @@ private struct StyleVaultWorkspace: View {
 private struct StyleCardView: View {
     let card: StylePromptCard
     let imageURL: URL?
+    let selected: Bool
     let onSelect: () -> Void
     let onDelete: () -> Void
 
@@ -514,7 +697,8 @@ private struct StyleCardView: View {
                     Image(nsImage: image).resizable().scaledToFill()
                 } else {
                     Image(systemName: card.category == .camera ? "camera.viewfinder" : "photo")
-                        .font(.system(size: 34)).foregroundStyle(.secondary)
+                        .font(.system(size: 34))
+                        .foregroundStyle(.secondary)
                 }
             }
             .frame(height: 150)
@@ -526,26 +710,49 @@ private struct StyleCardView: View {
                     Text(card.category.rawValue).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
-                if card.isBuiltIn { Text("模板").font(.caption2.weight(.bold)).padding(5).background(.blue.opacity(0.1), in: Capsule()) }
+                if selected {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                }
+                if card.isBuiltIn {
+                    Text("模板")
+                        .font(.caption2.weight(.bold))
+                        .padding(5)
+                        .background(.blue.opacity(0.1), in: Capsule())
+                }
             }
 
-            Text(card.prompt).font(.callout).lineLimit(6).textSelection(.enabled)
+            Text(card.prompt)
+                .font(.callout)
+                .lineLimit(6)
+                .textSelection(.enabled)
             HStack {
-                Button("用于生图", systemImage: "checkmark.circle", action: onSelect)
+                Button(
+                    selected ? "已用于生图" : "用于生图",
+                    systemImage: selected ? "checkmark.circle.fill" : "circle",
+                    action: onSelect
+                )
                 Spacer()
-                if !card.isBuiltIn { Button(role: .destructive, action: onDelete) { Image(systemName: "trash") } }
+                if !card.isBuiltIn {
+                    Button(role: .destructive, action: onDelete) {
+                        Image(systemName: "trash")
+                    }
+                }
             }
             .buttonStyle(.borderless)
         }
         .padding(14)
         .background(.background, in: RoundedRectangle(cornerRadius: 16))
-        .overlay { RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.08)) }
+        .overlay {
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(selected ? Color.green.opacity(0.65) : Color.primary.opacity(0.08), lineWidth: selected ? 2 : 1)
+        }
     }
 }
 
 private struct StyleCardEditorView: View {
     @Bindable var store: ArtDepartmentV2Store
     let onClose: () -> Void
+
     @State private var title = ""
     @State private var prompt = ""
     @State private var category: StylePromptCategory = .general
@@ -557,14 +764,32 @@ private struct StyleCardEditorView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("添加风格提示词卡").font(.title2.weight(.bold))
+            Text("提示词由用户提供并锁定；参考图会由 Apple Vision 建立本地相似度签名。")
+                .font(.callout)
+                .foregroundStyle(.secondary)
             TextField("标题", text: $title)
-            Picker("分类", selection: $category) { ForEach(StylePromptCategory.allCases) { Text($0.rawValue).tag($0) } }
-            Text("精确风格提示词").font(.headline)
-            TextEditor(text: $prompt).frame(minHeight: 180).padding(8).background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
-            TextField("标签，用逗号分隔", text: $tags)
-            TextField("备注", text: $notes, axis: .vertical)
+            Picker("分类", selection: $category) {
+                ForEach(StylePromptCategory.allCases) { value in
+                    Text(value.rawValue).tag(value)
+                }
+            }
+            TextEditor(text: $prompt)
+                .frame(minHeight: 170)
+                .overlay(alignment: .topLeading) {
+                    if prompt.isEmpty {
+                        Text("粘贴精确风格提示词")
+                            .foregroundStyle(.tertiary)
+                            .padding(7)
+                            .allowsHitTesting(false)
+                    }
+                }
+            TextField("标签，以逗号分隔", text: $tags)
+            TextField("备注", text: $notes)
             HStack {
-                Button(imageURL == nil ? "选择参考图" : imageURL!.lastPathComponent, systemImage: "photo") { isPickingImage = true }
+                Button("选择参考图", systemImage: "photo.badge.plus") {
+                    isPickingImage = true
+                }
+                if let imageURL { Text(imageURL.lastPathComponent).foregroundStyle(.secondary) }
                 Spacer()
                 Button("取消", action: onClose)
                 Button("保存") {
@@ -573,7 +798,9 @@ private struct StyleCardEditorView: View {
                             title: title,
                             prompt: prompt,
                             category: category,
-                            tags: tags.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) },
+                            tags: tags.split(separator: ",").map {
+                                $0.trimmingCharacters(in: .whitespacesAndNewlines)
+                            },
                             notes: notes,
                             imageURL: imageURL
                         )
@@ -581,16 +808,25 @@ private struct StyleCardEditorView: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(
+                    title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        || prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                )
             }
         }
-        .padding(24)
-        .frame(width: 620, height: 600)
-        .fileImporter(isPresented: $isPickingImage, allowedContentTypes: [.image], allowsMultipleSelection: false) { result in
+        .padding(22)
+        .frame(width: 620, height: 580)
+        .fileImporter(
+            isPresented: $isPickingImage,
+            allowedContentTypes: [.image],
+            allowsMultipleSelection: false
+        ) { result in
             imageURL = try? result.get().first
         }
     }
 }
+
+// MARK: - Generation studio
 
 private struct GenerationStudioWorkspace: View {
     @Bindable var store: ArtDepartmentV2Store
@@ -598,136 +834,137 @@ private struct GenerationStudioWorkspace: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("生图工坊")
-                        .font(.system(.largeTitle, design: .rounded, weight: .bold))
-                    Text("大模型只负责把已确认资产和用户锁定风格编译成可审阅提示词；Ark 负责文生图或参考图生图。")
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-            }
-            .padding(22)
+            header
             Divider()
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    selectionSection
-                    promptSection
-                    generationSection
-                    gallerySection
-                }
-                .padding(22)
-                .frame(maxWidth: 1_100)
-                .frame(maxWidth: .infinity)
+            HSplitView {
+                selectionPane
+                    .frame(minWidth: 300, idealWidth: 360)
+                promptPane
+                    .frame(minWidth: 420, idealWidth: 560)
+                resultsPane
+                    .frame(minWidth: 320, idealWidth: 420)
             }
         }
     }
 
-    private var selectionSection: some View {
-        GroupBox("1. 选择资产与风格") {
-            VStack(alignment: .leading, spacing: 12) {
-                Picker("资产类型", selection: $store.selectedAssetKind) {
-                    ForEach(ProductionAssetKind.allCases) { Text($0.rawValue).tag($0) }
-                }
-                Picker("资产", selection: $store.selectedAssetID) {
-                    ForEach(store.filteredAssets) { asset in Text(asset.canonicalName).tag(Optional(asset.id)) }
-                }
-                Picker("生成模式", selection: $store.generationMode) {
-                    ForEach(ImageGenerationMode.allCases) { Text($0.rawValue).tag($0) }
-                }
-
-                Text("风格卡（可多选）").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack {
-                        ForEach(store.styleCards) { card in
-                            let selected = store.selectedStyleCardIDs.contains(card.id)
-                            Button {
-                                store.toggleStyleSelection(card.id)
-                            } label: {
-                                Label(card.title, systemImage: selected ? "checkmark.circle.fill" : "circle")
-                                    .padding(.horizontal, 10).padding(.vertical, 7)
-                                    .background(selected ? Color.blue.opacity(0.12) : Color.primary.opacity(0.04), in: Capsule())
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-                TextField("补充机位、数量、姿态、时代或制作限制", text: $store.generationDirection, axis: .vertical)
-                    .textFieldStyle(.roundedBorder)
-                Button("上传额外参考图", systemImage: "photo.badge.plus", action: onImportReference)
+    private var header: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("生图工坊")
+                    .font(.system(.largeTitle, design: .rounded, weight: .bold))
+                Text("自动核验资产 + 用户锁定风格卡 → Apple Schema 提示词 → Ark 文生图 / 图生图")
+                    .foregroundStyle(.secondary)
             }
-            .padding(8)
+            Spacer()
+            Button("加入本轮参考图", systemImage: "photo.badge.plus", action: onImportReference)
+                .buttonStyle(.bordered)
+            Button("直接生图", systemImage: "wand.and.stars") {
+                Task { await store.generateImages() }
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(store.isWorking || store.selectedAsset == nil)
         }
+        .padding(22)
     }
 
-    private var promptSection: some View {
-        GroupBox("2. 审阅生图提示词") {
-            VStack(alignment: .leading, spacing: 12) {
+    private var selectionPane: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("生产资产").font(.headline)
+            Picker("类型", selection: $store.selectedAssetKind) {
+                ForEach(ProductionAssetKind.allCases) { kind in
+                    Text(kind.rawValue).tag(kind)
+                }
+            }
+            .pickerStyle(.segmented)
+            .onChange(of: store.selectedAssetKind) { _, _ in
+                store.selectedAssetID = store.filteredAssets.first?.id
+            }
+            List(store.filteredAssets, selection: $store.selectedAssetID) { asset in
+                Text(asset.canonicalName).tag(asset.id)
+            }
+
+            Text("生成模式").font(.headline)
+            Picker("模式", selection: $store.generationMode) {
+                ForEach(ImageGenerationMode.allCases) { mode in
+                    Text(mode.rawValue).tag(mode)
+                }
+            }
+
+            Text("补充要求").font(.headline)
+            TextEditor(text: $store.generationDirection)
+                .frame(minHeight: 90)
+                .padding(7)
+                .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 9))
+
+            Text("风格卡").font(.headline)
+            if store.selectedStyleCards.isEmpty {
+                Text("未手动选择时，系统会按资产类型和生成模式自动匹配最多三张风格卡。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text(store.selectedStyleCards.map(\.title).joined(separator: "、"))
+                    .font(.callout)
+            }
+        }
+        .padding(18)
+    }
+
+    private var promptPane: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Button("由大模型编译提示词", systemImage: "wand.and.stars") { Task { await store.planGenerationPrompt() } }
-                        .buttonStyle(.borderedProminent)
+                    Text("Apple GenerationSchema 提示词计划").font(.headline)
                     Spacer()
-                    Text("材质 / 构图 / 元素 / 锁定事实均可见").font(.caption).foregroundStyle(.secondary)
+                    Button("重新规划", systemImage: "arrow.clockwise") {
+                        Task { await store.planGenerationPrompt() }
+                    }
+                    .disabled(store.isWorking || store.selectedAsset == nil)
                 }
+                PromptField(title: "标题", text: $store.promptPlan.title, minHeight: 38)
                 PromptField(title: "主体", text: $store.promptPlan.subject)
-                HStack(alignment: .top) {
+                HStack(alignment: .top, spacing: 10) {
                     PromptField(title: "材质", text: $store.promptPlan.materials)
                     PromptField(title: "构图", text: $store.promptPlan.composition)
                     PromptField(title: "元素", text: $store.promptPlan.elements)
                 }
+                PromptField(title: "光影", text: $store.promptPlan.lighting)
                 PromptField(title: "正向提示词", text: $store.promptPlan.positivePrompt, minHeight: 150)
-                PromptField(title: "负向提示词", text: $store.promptPlan.negativePrompt, minHeight: 80)
+                PromptField(title: "必须避免", text: $store.promptPlan.negativePrompt, minHeight: 100)
                 if !store.promptPlan.lockedFacts.isEmpty {
-                    Text("锁定事实：\n" + store.promptPlan.lockedFacts.map { "• \($0)" }.joined(separator: "\n"))
-                        .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
-                }
-            }
-            .padding(8)
-        }
-    }
-
-    private var generationSection: some View {
-        GroupBox("3. 调用火山方舟 Ark") {
-            HStack {
-                TextField("模型 ID", text: $store.generationRecipe.model).textFieldStyle(.roundedBorder)
-                Picker("尺寸", selection: $store.generationRecipe.size) {
-                    Text("1K").tag("1K"); Text("2K").tag("2K"); Text("4K").tag("4K")
-                }
-                Stepper("最多 \(store.generationRecipe.maxImages) 张", value: $store.generationRecipe.maxImages, in: 1...10)
-                Toggle("水印", isOn: $store.generationRecipe.watermark)
-                Spacer()
-                Button("生成图片", systemImage: "sparkles") { Task { await store.generateImages() } }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(store.isWorking || store.promptPlan.positivePrompt.isEmpty)
-            }
-            .padding(8)
-        }
-    }
-
-    @ViewBuilder
-    private var gallerySection: some View {
-        if let images = store.currentProject?.generatedImages, !images.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("生成结果").font(.title2.weight(.bold))
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 260, maximum: 380), spacing: 14)], spacing: 14) {
-                    ForEach(images) { record in
-                        VStack(alignment: .leading, spacing: 8) {
-                            if let url = store.imageURL(for: record.localImagePath), let image = NSImage(contentsOf: url) {
-                                Image(nsImage: image).resizable().scaledToFit().frame(maxHeight: 320)
-                            }
-                            Text(record.promptPlan.title).font(.headline)
-                            Text(record.createdAt.formatted()).font(.caption).foregroundStyle(.secondary)
-                            if let url = store.imageURL(for: record.localImagePath) {
-                                Button("在 Finder 中显示") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
-                                    .buttonStyle(.borderless)
-                            }
-                        }
-                        .padding(12)
-                        .background(.background, in: RoundedRectangle(cornerRadius: 14))
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("锁定事实").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                        Text(store.promptPlan.lockedFacts.map { "• \($0)" }.joined(separator: "\n"))
+                            .font(.callout)
+                            .textSelection(.enabled)
                     }
+                    .padding(12)
+                    .background(.blue.opacity(0.07), in: RoundedRectangle(cornerRadius: 10))
                 }
             }
+            .padding(18)
+        }
+    }
+
+    private var resultsPane: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 14) {
+                Text("生成历史").font(.headline)
+                if let project = store.currentProject, !project.generatedImages.isEmpty {
+                    ForEach(project.generatedImages) { record in
+                        GeneratedImageCard(
+                            record: record,
+                            imageURL: store.imageURL(for: record.localImagePath)
+                        )
+                    }
+                } else {
+                    ContentUnavailableView(
+                        "还没有生成图",
+                        systemImage: "photo.stack",
+                        description: Text("选择资产后可直接生图；系统会自动规划提示词。")
+                    )
+                }
+            }
+            .padding(18)
         }
     }
 }
@@ -735,12 +972,41 @@ private struct GenerationStudioWorkspace: View {
 private struct PromptField: View {
     let title: String
     @Binding var text: String
-    var minHeight: CGFloat = 70
+    var minHeight: CGFloat = 76
+
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-            TextEditor(text: $text).frame(minHeight: minHeight).padding(7).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 9))
+            TextEditor(text: $text)
+                .frame(minHeight: minHeight)
+                .padding(7)
+                .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 9))
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+}
+
+private struct GeneratedImageCard: View {
+    let record: GeneratedImageRecord
+    let imageURL: URL?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let imageURL, let image = NSImage(contentsOf: imageURL) {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            Text(record.promptPlan.title)
+                .font(.headline)
+            Text(record.createdAt.formatted(date: .abbreviated, time: .shortened))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .background(.background, in: RoundedRectangle(cornerRadius: 14))
+        .overlay { RoundedRectangle(cornerRadius: 14).stroke(Color.primary.opacity(0.08)) }
     }
 }
