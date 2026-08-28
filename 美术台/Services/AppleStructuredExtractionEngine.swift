@@ -392,8 +392,11 @@ actor AppleStructuredExtractionEngine {
         let response = try await session.respond(
             to: prompt,
             generating: Output.self,
-            options: GenerationOptions(sampling: .greedy)
+            options: GenerationOptions(samplingMode: .greedy)
         )
+        if #available(macOS 27.0, *) {
+            logger.debug("Structured generation used \(response.usage.totalTokenCount, privacy: .public) tokens")
+        }
         return response.content
     }
 

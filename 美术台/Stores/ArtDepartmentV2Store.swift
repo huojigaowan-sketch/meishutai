@@ -25,8 +25,15 @@ final class ArtDepartmentV2Store {
     var errorMessage: String?
     var noticeMessage: String?
     var showsDiagnostics = false
+    var selectedStyleNodeID: UUID?
+    var styleSearchText = ""
+    var showsArchivedStyles = false
+    var activeExternalStyleDraftID: UUID?
+    var styleSampleLoadingIDs: Set<UUID> = []
+    var styleSampleFailedIDs: Set<UUID> = []
+    @ObservationIgnored var externalDraftSaveTask: Task<Void, Never>?
 
-    @ObservationIgnored private let persistence = ArtDepartmentPersistence.shared
+    @ObservationIgnored let persistence = ArtDepartmentPersistence.shared
 
     var projects: [ArtDepartmentProject] { document.projects }
     var styleCards: [StylePromptCard] { document.styleCards }
@@ -61,7 +68,7 @@ final class ArtDepartmentV2Store {
     }
 
     var selectedStyleCards: [StylePromptCard] {
-        document.styleCards.filter { selectedStyleCardIDs.contains($0.id) }
+        document.styleCards.filter { selectedStyleCardIDs.contains($0.id) && !$0.isArchived }
     }
 
     var hasExplicitStyleSelection: Bool {
@@ -94,6 +101,7 @@ final class ArtDepartmentV2Store {
             } ?? document.projects.first?.id
             synchronizeSelections()
             await reloadStyleImageCache()
+            restoreExternalStyleDraft()
             await refreshEngineStatus()
             await persist()
         } catch {
@@ -149,6 +157,7 @@ final class ArtDepartmentV2Store {
             $0.normalizationAudit = nil
             $0.assets = []
             $0.automationSummary = nil
+            $0.reliabilityAudit = nil
             $0.updatedAt = .now
         }
         synchronizeSelections()
@@ -161,6 +170,7 @@ final class ArtDepartmentV2Store {
             $0.pipelineStage = $0.canonicalScenes.isEmpty ? .source : .canonical
             $0.assets = []
             $0.automationSummary = nil
+            $0.reliabilityAudit = nil
             $0.updatedAt = .now
         }
         synchronizeSelections()
@@ -231,6 +241,7 @@ final class ArtDepartmentV2Store {
             mutateProject {
                 $0.assets = extracted.assets
                 $0.automationSummary = extracted.summary
+                $0.reliabilityAudit = extracted.audit
                 $0.engineStatus = extracted.engineStatus
                 $0.pipelineStage = .completed
                 $0.updatedAt = .now
@@ -304,6 +315,7 @@ final class ArtDepartmentV2Store {
                 $0.canonicalScenes = scenes
                 $0.assets = result.assets
                 $0.automationSummary = result.summary
+                $0.reliabilityAudit = result.audit
                 $0.engineStatus = result.engineStatus
                 $0.pipelineStage = .completed
                 $0.updatedAt = .now
@@ -392,26 +404,7 @@ final class ArtDepartmentV2Store {
     }
 
     func saveExternalStyleToLibrary() {
-        let cleanPrompt = externalStylePrompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cleanPrompt.isEmpty else {
-            errorMessage = ArtDepartmentV2Error.noSelectedStyle.localizedDescription
-            return
-        }
-        let cleanTitle = externalStyleTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        let card = StylePromptCard(
-            title: cleanTitle.isEmpty ? "外部风格 \(document.styleCards.count + 1)" : cleanTitle,
-            prompt: cleanPrompt,
-            category: externalStyleCategory,
-            tags: ["用户确认", "外部导入"],
-            notes: "由用户在生图工坊测试并明确存入风格图书馆。",
-            isPromptLocked: true
-        )
-        document.styleCards.insert(card, at: 0)
-        selectedStyleCardIDs.append(card.id)
-        externalStyleTitle = ""
-        externalStylePrompt = ""
-        noticeMessage = "外部风格已由用户确认并存入加密风格图书馆。"
-        Task { await persist() }
+        promoteExternalStyleDraft()
     }
 
     func importGenerationReference(_ url: URL) async {
@@ -434,8 +427,10 @@ final class ArtDepartmentV2Store {
             return
         }
         await runWork {
-            let cards = resolveStyleCards()
+            var cards = resolveStyleCards()
             guard !cards.isEmpty else { throw ArtDepartmentV2Error.noSelectedStyle }
+            for card in cards { await ensureStyleSamples(for: card.id) }
+            cards = resolveStyleCards()
             let client = remoteClientIfConfigured()
             promptPlan = try await ArtDepartmentV2Pipeline.makePromptPlan(
                 asset: asset,
@@ -455,8 +450,10 @@ final class ArtDepartmentV2Store {
             return
         }
         await runWork {
-            let cards = resolveStyleCards()
+            var cards = resolveStyleCards()
             guard !cards.isEmpty else { throw ArtDepartmentV2Error.noSelectedStyle }
+            for card in cards { await ensureStyleSamples(for: card.id) }
+            cards = resolveStyleCards()
             if promptPlan.positivePrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 || promptPlan.mode != generationMode
                 || promptPlan.chosenStyleCardIDs != cards.map(\.id)
@@ -473,8 +470,10 @@ final class ArtDepartmentV2Store {
             let configuration = try ArkImageConfiguration.current()
             var references: [Data] = []
             for card in cards {
-                if let data = try await persistence.data(for: card.referenceImagePath) {
-                    references.append(data)
+                for sample in card.styleSampleMedia {
+                    if let data = try await persistence.data(for: sample.encryptedLocalPath) {
+                        references.append(data)
+                    }
                 }
             }
             if let data = try await persistence.data(for: generationReferencePath) {
@@ -524,6 +523,9 @@ final class ArtDepartmentV2Store {
                     total: payloads.count
                 )
             }
+            if let firstPayload = payloads.first {
+                await attachGeneratedSampleToActiveExperiment(firstPayload.data)
+            }
             mutateProject {
                 $0.generatedImages.insert(contentsOf: records, at: 0)
                 $0.updatedAt = .now
@@ -569,10 +571,12 @@ final class ArtDepartmentV2Store {
     private func reloadStyleImageCache() async {
         var cache: [String: Data] = [:]
         for card in document.styleCards {
-            guard let path = card.referenceImagePath,
-                  let data = try? await persistence.data(for: path)
-            else { continue }
-            cache[path] = data
+            for sample in card.styleSampleMedia {
+                guard let path = sample.encryptedLocalPath,
+                      let data = try? await persistence.data(for: path)
+                else { continue }
+                cache[path] = data
+            }
         }
         styleImageDataByPath = cache
     }
@@ -593,19 +597,30 @@ final class ArtDepartmentV2Store {
     }
 
     private func resolveStyleCards() -> [StylePromptCard] {
-        var cards = selectedStyleCards
+        var cards = selectedStyleCards.map {
+            StylePromptResolver.resolvedCard($0, in: document.styleCards)
+        }
         let prompt = externalStylePrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         if !prompt.isEmpty {
-            let title = externalStyleTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-            cards.append(StylePromptCard(
-                id: StyleSelectionPolicy.temporaryCardID,
-                title: title.isEmpty ? "本轮外部风格" : title,
-                prompt: prompt,
-                category: externalStyleCategory,
-                tags: ["本轮临时", "用户明确选择"],
-                notes: "未自动存入图书馆；用户可在测试后手动保存。",
-                isPromptLocked: true
-            ))
+            if let draftID = activeExternalStyleDraftID,
+               let draft = document.styleCards.first(where: { $0.id == draftID }),
+               !cards.contains(where: { $0.id == draftID })
+            {
+                cards.append(StylePromptResolver.resolvedCard(draft, in: document.styleCards))
+            } else if activeExternalStyleDraftID == nil {
+                let title = externalStyleTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+                cards.append(StylePromptCard(
+                    id: StyleSelectionPolicy.temporaryCardID,
+                    title: title.isEmpty ? "本轮外部风格" : title,
+                    prompt: prompt,
+                    category: externalStyleCategory,
+                    tags: ["持久化准备中", "用户明确选择"],
+                    notes: "输入会自动保存为实验分支。",
+                    lifecycleRawValue: StylePromptLifecycle.experiment.rawValue,
+                    sampleMedia: [],
+                    isPromptLocked: false
+                ))
+            }
         }
         return cards
     }
@@ -658,7 +673,7 @@ final class ArtDepartmentV2Store {
     }
 
     private func migrateToAutomaticPipeline() {
-        document.schemaVersion = max(4, document.schemaVersion)
+        document.schemaVersion = max(5, document.schemaVersion)
         for projectIndex in document.projects.indices {
             if document.projects[projectIndex].pipelineStage == .reviewing {
                 document.projects[projectIndex].pipelineStage = .adjudicating
@@ -692,7 +707,7 @@ final class ArtDepartmentV2Store {
         }
     }
 
-    private func persist() async {
+    func persist() async {
         do {
             try await persistence.save(document)
         } catch {

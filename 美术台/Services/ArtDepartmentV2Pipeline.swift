@@ -60,7 +60,9 @@ nonisolated enum BuiltInStylePromptCatalog {
         ),
     ]
 
-    static let cards = projectCards + ImportedStylePromptCatalog.cards
+    // Operation templates remain available to generation modes but are not
+    // style-library nodes because they do not define a visual sample.
+    static let cards = ImportedStylePromptCatalog.cards
 }
 
 nonisolated enum StyleSelectionPolicy {
@@ -86,6 +88,7 @@ nonisolated struct AutomatedAssetExtractionResult: Sendable {
     var assets: [ProductionAsset]
     var summary: AssetAutomationSummary
     var engineStatus: AppleEngineStatusSnapshot
+    var audit: AssetReliabilityAudit
 }
 
 nonisolated enum ArtDepartmentV2Pipeline {
@@ -201,10 +204,17 @@ nonisolated enum ArtDepartmentV2Pipeline {
         }
 
         let consolidated = automaticConsolidation(allAssets)
-        let usable = consolidated.filter(\.isUsable)
+        let reliability = AssetReliabilityV4.finalize(
+            consolidated,
+            sceneCount: ordered.count,
+            engineNames: Array(usedEngines).sorted(),
+            startedAt: startedAt
+        )
+        let reliableAssets = reliability.assets
+        let usable = reliableAssets.filter(\.isUsable)
         guard !usable.isEmpty else { throw ArtDepartmentV2Error.noUsableAssets }
-        let quarantined = consolidated.count { $0.isQuarantined }
-        let rejected = consolidated.count { $0.reviewDecision == .rejected }
+        let quarantined = reliableAssets.count { $0.isQuarantined }
+        let rejected = reliableAssets.count { $0.reviewDecision == .rejected }
         let elapsed = startedAt.duration(to: .now)
         let milliseconds = Int(elapsed.components.seconds * 1_000)
             + Int(elapsed.components.attoseconds / 1_000_000_000_000_000)
@@ -226,9 +236,10 @@ nonisolated enum ArtDepartmentV2Pipeline {
             total: ordered.count
         ))
         return AutomatedAssetExtractionResult(
-            assets: consolidated,
+            assets: reliableAssets,
             summary: summary,
-            engineStatus: engineStatus
+            engineStatus: engineStatus,
+            audit: reliability.audit
         )
     }
 
@@ -330,10 +341,20 @@ nonisolated enum ArtDepartmentV2Pipeline {
         assets.append(contentsOf: deterministicCharacterAssets(scene))
         assets.append(contentsOf: validatedModelAssets(bundle, scene: scene))
         assets.append(contentsOf: contentTagPropAssets(bundle.contentTags, scene: scene))
+        let adjudication = await AssetReliabilityModelEngine.shared.adjudicate(
+            scene: scene,
+            candidates: assets,
+            remote: client
+        )
+        assets = AssetReliabilityV4.applyAdjudication(
+            adjudication,
+            to: assets,
+            scene: scene
+        )
         return SceneAutomationResult(
             sceneOrder: scene.order,
             assets: assets,
-            engineNames: bundle.engineNames
+            engineNames: Array(Set(bundle.engineNames + adjudication.engineNames)).sorted()
         )
     }
 
@@ -574,15 +595,11 @@ nonisolated enum ArtDepartmentV2Pipeline {
                 $0.kind == asset.kind
                     && AppleLinguisticAnalyzer.canonicalKey($0.canonicalName)
                         == AppleLinguisticAnalyzer.canonicalKey(asset.canonicalName)
+                    && continuityVariantsAreCompatible($0, asset)
             }
-            let semanticIndex = exactIndex ?? result.firstIndex {
-                guard $0.kind == asset.kind else { return false }
-                if asset.kind == .scene { return false }
-                return AppleLinguisticAnalyzer.likelySameIdentity(
-                    $0.canonicalName,
-                    asset.canonicalName
-                )
-            }
+            // V4 never performs unreviewed semantic identity merges. Exact
+            // normalized names merge; ambiguous aliases remain separate.
+            let semanticIndex = exactIndex
             if let index = semanticIndex {
                 result[index] = merge(result[index], asset)
             } else {
@@ -593,6 +610,19 @@ nonisolated enum ArtDepartmentV2Pipeline {
             if $0.kind == $1.kind { return $0.firstSceneOrder < $1.firstSceneOrder }
             return kindOrder($0.kind) < kindOrder($1.kind)
         }
+    }
+
+    private static func continuityVariantsAreCompatible(
+        _ lhs: ProductionAsset,
+        _ rhs: ProductionAsset
+    ) -> Bool {
+        let left = (lhs.continuityVariantKey ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let right = (rhs.continuityVariantKey ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return left.isEmpty || right.isEmpty
+            || AppleLinguisticAnalyzer.canonicalKey(left)
+                == AppleLinguisticAnalyzer.canonicalKey(right)
     }
 
     private static func merge(
@@ -614,6 +644,26 @@ nonisolated enum ArtDepartmentV2Pipeline {
         merged.compositionNotes = mergeText(lhs.compositionNotes, rhs.compositionNotes)
         merged.elementNotes = mergeText(lhs.elementNotes, rhs.elementNotes)
         merged.warnings = uniqueText(lhs.warnings + rhs.warnings)
+        merged.independentVerdictCount = (lhs.independentVerdictCount ?? 0)
+            + (rhs.independentVerdictCount ?? 0)
+        merged.identityFingerprint = lhs.identityFingerprint ?? rhs.identityFingerprint
+        if lhs.continuityVariantKey == rhs.continuityVariantKey {
+            merged.continuityVariantKey = lhs.continuityVariantKey
+        }
+        if let left = lhs.confidenceBreakdown, let right = rhs.confidenceBreakdown {
+            merged.confidenceBreakdown = AssetConfidenceBreakdown(
+                deterministicEvidence: max(left.deterministicEvidence, right.deterministicEvidence),
+                exactQuoteCoverage: min(left.exactQuoteCoverage, right.exactQuoteCoverage),
+                independentAgreement: max(left.independentAgreement, right.independentAgreement),
+                crossSceneSupport: max(left.crossSceneSupport, right.crossSceneSupport),
+                identityStability: min(left.identityStability, right.identityStability),
+                continuityConsistency: min(left.continuityConsistency, right.continuityConsistency),
+                schemaCompleteness: max(left.schemaCompleteness, right.schemaCompleteness),
+                modelCalibration: max(left.modelCalibration, right.modelCalibration)
+            )
+        } else {
+            merged.confidenceBreakdown = lhs.confidenceBreakdown ?? rhs.confidenceBreakdown
+        }
         if lhs.reviewDecision == .accepted || rhs.reviewDecision == .accepted {
             merged.reviewDecision = .accepted
             merged.warnings = []

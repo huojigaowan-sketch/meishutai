@@ -18,6 +18,13 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .general,
             tags: ["开源风格", "MIT", "应用与网页设计"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/app-web-design.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：32503",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "8411C091-7B02-5F51-BD2A-1C421E88638B")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787639837859_idlxzp_HQf9rFua4AEdqW1.jpg",
+                    sourceLabel: "上游完整样板 1"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -35,6 +42,23 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .general,
             tags: ["开源风格", "MIT", "应用与网页设计"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/app-web-design.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：32411",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "F1270A9B-86C0-53AD-BBA7-101F2F472921")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787552793135_75pudi_HQZ5lDnbMAAjjNN.jpg",
+                    sourceLabel: "上游完整样板 1"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "B977025A-9CB7-55E0-B65D-4593C1683F78")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787552793140_0ibsb7_HQZ5lD9bAAApjg8.jpg",
+                    sourceLabel: "上游完整样板 2"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "70A98392-31E5-5350-B037-7B2962B3D26A")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787552793095_nx9jpa_HQZ5lDlaIAAKtp0.jpg",
+                    sourceLabel: "上游完整样板 3"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -52,6 +76,18 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .general,
             tags: ["开源风格", "MIT", "应用与网页设计"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/app-web-design.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：32186",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "5F012506-7283-54DE-A6E9-E38DC18CAA92")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787379851536_v99f1l_HQQ44bQXoAAEdYz.jpg",
+                    sourceLabel: "上游完整样板 1"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "891C1AC4-C2A6-5EE0-87DD-24774884C4A6")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787379851506_zj81ft_HQQ46uPW0AAavV9.jpg",
+                    sourceLabel: "上游完整样板 2"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -69,6 +105,23 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .general,
             tags: ["开源风格", "MIT", "应用与网页设计"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/app-web-design.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：31570",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "DC714A51-8CE9-57B8-8816-EE80A2E9B2F3")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1786947851995_vupmgp_HPzCszWbkAAcggR.jpg",
+                    sourceLabel: "上游完整样板 1"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "B8939C51-FF4E-5E17-B80F-7D5373F7EF7F")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1786947851956_8bzhi2_HPzCwxTasAARNuf.jpg",
+                    sourceLabel: "上游完整样板 2"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "7396983D-FE12-5FA0-8E7B-7A7490120522")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1786947853667_fc61wc_HPzC1VOboAAvKbB.jpg",
+                    sourceLabel: "上游完整样板 3"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -86,6 +139,28 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .general,
             tags: ["开源风格", "MIT", "应用与网页设计"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/app-web-design.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：31468",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "C25EA7A8-568A-5570-A324-1CA4388E35B5")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1786774865701_c02f05_HPsDnRIbkAAlDge.jpg",
+                    sourceLabel: "上游完整样板 1"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "C85417B5-5147-5889-AAD8-6A5A6777EA2B")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1786774865865_w6ta19_HPsDnREbAAA14PB.jpg",
+                    sourceLabel: "上游完整样板 2"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "987B588A-0D36-5E43-8952-9A886C71EF15")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1786774865686_nwd4t2_HPsDnRDaEAA__S8.jpg",
+                    sourceLabel: "上游完整样板 3"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "EA47637C-5AA4-5D5D-9EBD-8925B0F2EDE9")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1786774866499_8h6ujx_HPsDnRFboAAcm7T.jpg",
+                    sourceLabel: "上游完整样板 4"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -103,6 +178,13 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .general,
             tags: ["开源风格", "MIT", "应用与网页设计"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/app-web-design.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：31339",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "14EE1EDF-9B54-5091-B8EA-76B1A67F9BF4")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1786774883701_7370ff_HPcPNsEXYAA95EP.jpg",
+                    sourceLabel: "上游完整样板 1"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -120,6 +202,18 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .general,
             tags: ["开源风格", "MIT", "应用与网页设计"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/app-web-design.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：30941",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "13689C1A-E215-5B33-81C6-89201D30D962")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1786344502610_xvq442_HPU_tBzbEAApHG0.jpg",
+                    sourceLabel: "上游完整样板 1"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "FE844872-1FA4-5BDC-98B2-23CECB903D1C")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1786344503219_as3r0u_HPU_t_2bcAAsxVq.jpg",
+                    sourceLabel: "上游完整样板 2"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -137,6 +231,13 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .camera,
             tags: ["开源风格", "MIT", "漫画分镜"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/comic-storyboard.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：32661",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "21BD0122-3F36-5D5D-A346-0C34D6DD51A9")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787824273892_luubwm_HQo1H1DWAAEE31Y.jpg",
+                    sourceLabel: "上游完整样板 1"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -154,6 +255,13 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .camera,
             tags: ["开源风格", "MIT", "漫画分镜"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/comic-storyboard.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：32675",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "4960307D-95B5-5574-B676-1C1212920A70")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787824282769_f1nlqo_HQqQn1va0AA7Pr5.jpg",
+                    sourceLabel: "上游完整样板 1"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -171,6 +279,13 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .camera,
             tags: ["开源风格", "MIT", "漫画分镜"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/comic-storyboard.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：32318",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "EDEFF101-78BA-54DD-A0E8-1A29A8D26798")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787466532881_16qv2a_HQV3iYCbUAA0jWx.jpg",
+                    sourceLabel: "上游完整样板 1"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -188,6 +303,13 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .camera,
             tags: ["开源风格", "MIT", "漫画分镜"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/comic-storyboard.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：32194",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "5C0E6D24-4C71-5AE3-9A94-E3A26342688B")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787379856020_x8scoe_HQRp55lXMAE50GZ.jpg",
+                    sourceLabel: "上游完整样板 1"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -205,6 +327,18 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .camera,
             tags: ["开源风格", "MIT", "漫画分镜"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/comic-storyboard.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：31992",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "0F3D67D0-5826-58F2-A536-B168062EA439")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787293543889_1p4qb1_HQHRazNXYAAu3r1.jpg",
+                    sourceLabel: "上游完整样板 1"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "A61CC46E-FFE0-5278-8C90-C2FFBCF3CCCE")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787293543883_e4porw_HQHRbUNXkAA5XPm.jpg",
+                    sourceLabel: "上游完整样板 2"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -222,6 +356,13 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .camera,
             tags: ["开源风格", "MIT", "漫画分镜"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/comic-storyboard.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：31995",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "9E2B8330-2CF5-5439-8573-F892A8960D05")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787208876029_xmncg0_HQF19kdacAATv1I.jpg",
+                    sourceLabel: "上游完整样板 1"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -239,6 +380,13 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .camera,
             tags: ["开源风格", "MIT", "漫画分镜"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/comic-storyboard.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：31997",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "25F32B8F-DC51-535F-AAAF-BC7F92FE99ED")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787208877458_0x85ko_HQE90xdaYAA8DRm.jpg",
+                    sourceLabel: "上游完整样板 1"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -256,6 +404,18 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .prop,
             tags: ["开源风格", "MIT", "电商主图"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/ecommerce-main-image.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：32582",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "2AB8EE7A-4A11-51A9-9FB5-CA30B4E48CCC")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787725587170_ybmfk7_HQkQQPWXQAEWzlh.jpg",
+                    sourceLabel: "上游完整样板 1"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "087D5593-E62E-5A36-BBA9-C8718B2F41BB")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787725586482_xe4ag2_HQkQR8NWoAAhzRJ.jpg",
+                    sourceLabel: "上游完整样板 2"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -273,6 +433,18 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .prop,
             tags: ["开源风格", "MIT", "电商主图"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/ecommerce-main-image.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：32200",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "21E7A466-D9BD-5BA0-9B80-49AFB2892EBF")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787379863537_o4kkad_HQSrCbNbUAAFin6.jpg",
+                    sourceLabel: "上游完整样板 1"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "DD3C473A-E5DE-591B-A658-DA87749FC370")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787379862312_ngg148_HQSrHiAbEAAuvwV.jpg",
+                    sourceLabel: "上游完整样板 2"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -290,6 +462,28 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .prop,
             tags: ["开源风格", "MIT", "电商主图"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/ecommerce-main-image.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：31658",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "609FB75F-B762-5EC1-973C-CCC180C50E1B")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787034148215_konuoa_HP5xPIWaQAAXOUa.jpg",
+                    sourceLabel: "上游完整样板 1"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "EB7CE9DF-D6BE-52AA-AD97-72871179D4CB")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787034148165_o7j5ax_HP5xPoVaAAAkJH8.jpg",
+                    sourceLabel: "上游完整样板 2"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "F160E1F4-E54C-5E5E-AE5C-69A7AC08DFA2")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787034148171_kdnoti_HP5xQIdbYAAqA5j.jpg",
+                    sourceLabel: "上游完整样板 3"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "95719AEA-1B65-5A61-BF9B-1D2AA31D059D")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787034148977_3gqt63_HP5xQqVbMAEVdnz.jpg",
+                    sourceLabel: "上游完整样板 4"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -307,6 +501,13 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .prop,
             tags: ["开源风格", "MIT", "电商主图"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/ecommerce-main-image.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：31569",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "709F16F9-0CD8-5639-B21F-96A31E0038F0")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1786947850240_ttctun_HP0JcjGa0AASb60.jpg",
+                    sourceLabel: "上游完整样板 1"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -324,6 +525,28 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .prop,
             tags: ["开源风格", "MIT", "电商主图"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/ecommerce-main-image.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：31465",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "44B40BAE-5F7D-5BC8-9FBF-9C577F23C6E6")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1786861118125_5etqo8_HPuiXwBawAAatce.jpg",
+                    sourceLabel: "上游完整样板 1"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "105038C5-9C52-52A3-9C7B-27E10F85ECF9")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1786861118109_96hh3y_HPuiYSwbEAAwv4Z.jpg",
+                    sourceLabel: "上游完整样板 2"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "6B13C9B3-2F2C-510B-BAE6-D2C8B2B22A18")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1786861118389_a1sfeo_HPuiYw1bQAApiNE.jpg",
+                    sourceLabel: "上游完整样板 3"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "64754493-27C7-5242-B157-A94877CDE20F")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1786861119491_eytjfp_HPuiZP5a8AAPcB1.jpg",
+                    sourceLabel: "上游完整样板 4"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -341,6 +564,18 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .prop,
             tags: ["开源风格", "MIT", "电商主图"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/ecommerce-main-image.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：31061",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "5E9B69B7-DD82-5A5C-8FE3-77FE99F1AEE7")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1786518697805_jwa3cd_HPZ-iD6bMAAwf-F.jpg",
+                    sourceLabel: "上游完整样板 1"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "390B6365-5701-55CF-95C3-27D336018B92")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1786518698084_80d9zk_HPZ-ikwacAArGuQ.jpg",
+                    sourceLabel: "上游完整样板 2"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -358,6 +593,13 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .prop,
             tags: ["开源风格", "MIT", "电商主图"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/ecommerce-main-image.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：30800",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "926ACC03-EFFC-553D-A928-4CFCC3957A63")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1786257225958_njgnpk_HPLRmraa8AAW99W.png",
+                    sourceLabel: "上游完整样板 1"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -375,6 +617,23 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .prop,
             tags: ["开源风格", "MIT", "游戏资产"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/game-asset.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：32662",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "74D27CE6-326F-5236-9662-CC7675CE110F")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787824275323_zvc7vd_HQiIeVbW8AE7rHc.jpg",
+                    sourceLabel: "上游完整样板 1"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "47A5F2C2-23F7-5960-8EBC-D8F3EEC67DE4")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787824275344_7uyl1o_HQiIecjWsAAJw7C.jpg",
+                    sourceLabel: "上游完整样板 2"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "495F86C1-D6D2-5989-80E3-B6995FBC1634")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787824275287_4gvrkn_HQiIeVYXMAA40pK.jpg",
+                    sourceLabel: "上游完整样板 3"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -392,6 +651,23 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .prop,
             tags: ["开源风格", "MIT", "游戏资产"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/game-asset.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：32399",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "089D4E72-7D3F-5C77-9C9A-FE2CD55D9B57")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787639844605_3cbv9r_HQdbMO1aMAAy6DN.jpg",
+                    sourceLabel: "上游完整样板 1"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "73A08710-8AD3-5E86-A600-B5838976E8E2")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787639844557_555q4h_HQdbMO9aMAAOtlc.jpg",
+                    sourceLabel: "上游完整样板 2"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "BE5B901E-710B-5C66-A8F2-21028247A96C")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787639844623_o6zh82_HQdbMO8bUAE4BwP.jpg",
+                    sourceLabel: "上游完整样板 3"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -409,6 +685,18 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .prop,
             tags: ["开源风格", "MIT", "游戏资产"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/game-asset.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：31876",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "666DA8F5-D0F1-5651-8098-8526E4FE895B")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787120731463_cj0t5w_HQBN45eXcAAtoxR.jpg",
+                    sourceLabel: "上游完整样板 1"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "B423F705-D924-58D5-8AFF-FED9A8C866B7")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787120731466_ws5vlb_HQBN6XfWgAA5RQu.jpg",
+                    sourceLabel: "上游完整样板 2"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -426,6 +714,13 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .prop,
             tags: ["开源风格", "MIT", "游戏资产"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/game-asset.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：31885",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "9A422287-28D6-5CE0-98FA-1C4082284C21")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787120741335_arstps_HQAhYD6WAAAGizs.jpg",
+                    sourceLabel: "上游完整样板 1"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -443,6 +738,18 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .prop,
             tags: ["开源风格", "MIT", "游戏资产"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/game-asset.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：31469",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "CA6CC021-98E9-50A6-926A-1128FD73750E")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1786774867558_66snrz_HPskDdrW0AA1KBB.jpg",
+                    sourceLabel: "上游完整样板 1"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "5B9F3C40-A4EA-572C-9B5D-840F2BE92D6A")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1786774867607_5l7ubd_HPskDdUWgAAbE8D.jpg",
+                    sourceLabel: "上游完整样板 2"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -460,6 +767,13 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .prop,
             tags: ["开源风格", "MIT", "游戏资产"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/game-asset.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：31482",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "06424C4E-0B5E-5E24-B96F-D6E897D6B079")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1786774884248_2ixnrt_HPsVAUpbMAEn8oh.png",
+                    sourceLabel: "上游完整样板 1"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -477,6 +791,18 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .prop,
             tags: ["开源风格", "MIT", "游戏资产"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/game-asset.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：31475",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "54BF010C-DC1C-567B-907F-F39A95932B11")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1786774873705_nwlq8t_HPrlVpcaoAADayY.jpg",
+                    sourceLabel: "上游完整样板 1"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "70231A3E-E016-5261-BFDD-A7B90B502FBA")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1786774873489_vytibt_HPrlVpebsAAoZDd.jpg",
+                    sourceLabel: "上游完整样板 2"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -494,6 +820,18 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .general,
             tags: ["开源风格", "MIT", "信息图与教育视觉"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/infographic-edu-visual.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：6847",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "31AE3232-0156-5DF0-92DD-AA74C9FD26EF")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1768962051381_l9uih4_537980579-6f29d32a-c786-40c4-bd5a-79c640737496.png",
+                    sourceLabel: "上游完整样板 1"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "4ED64D38-FAE6-5CCF-A6FD-B4B05D0F066E")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1768962076321_nu4c5q_537981099-d18d0e38-f7ac-4781-a5da-6d68e2380885.png",
+                    sourceLabel: "上游完整样板 2"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -511,6 +849,18 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .general,
             tags: ["开源风格", "MIT", "信息图与教育视觉"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/infographic-edu-visual.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：498",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "C40687E4-43A6-5FD9-9E56-A2D3AF37E8E4")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1763885651870_4szbai_G6VZiROagAAqsIh.jpg",
+                    sourceLabel: "上游完整样板 1"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "0DE4D38F-358A-5B40-92C4-B3A437A09DD3")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1763885654537_qf6h9o_G6VZiRWaIAA_9x5.jpg",
+                    sourceLabel: "上游完整样板 2"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -528,6 +878,13 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .general,
             tags: ["开源风格", "MIT", "信息图与教育视觉"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/infographic-edu-visual.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：380",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "723ECD7C-6717-555D-A128-C3BD0A4656E9")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1763886061720_fzgqaq_G6RIeSZXgAA7cOf.jpg",
+                    sourceLabel: "上游完整样板 1"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -545,6 +902,28 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .general,
             tags: ["开源风格", "MIT", "信息图与教育视觉"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/infographic-edu-visual.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：3438",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "F7621A76-63E7-542C-9023-DE8C7C37B645")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1766940094520_1mg5pd_G8_m2ZVWEAAMG7y.jpg",
+                    sourceLabel: "上游完整样板 1"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "C426C25D-2DA4-5DE9-9EA0-CBE9EB0B34BE")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1766940095035_8t8iil_G8_mW4FWwAEwERE.jpg",
+                    sourceLabel: "上游完整样板 2"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "EA33BC2A-55B5-5053-9551-FDF69824E050")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1766940095188_kt8ksq_G8_m_7hWoAAw19u.jpg",
+                    sourceLabel: "上游完整样板 3"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "A93FDF54-3FC8-535C-B8FB-EF50F5A2894A")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1766940096864_fhv4oo_G8_nePrXUAAHvgn.jpg",
+                    sourceLabel: "上游完整样板 4"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -562,6 +941,18 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .general,
             tags: ["开源风格", "MIT", "信息图与教育视觉"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/infographic-edu-visual.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：509",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "5783AA03-C09B-578B-87DA-298981F35D21")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1763885620059_vzaj75_G6WfVvIbAAEgvYg.jpg",
+                    sourceLabel: "上游完整样板 1"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "31A7576B-E7CB-5633-9EBE-A93394400978")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1763885622901_pk1vka_G6P2CkracAINIfP.jpg",
+                    sourceLabel: "上游完整样板 2"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -579,6 +970,13 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .general,
             tags: ["开源风格", "MIT", "信息图与教育视觉"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/infographic-edu-visual.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：32501",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "CC9AFBE1-CE1D-5CE2-9181-DC7C3FE5A030")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787639835929_41tdel_HPMiazuWYAA5e7F.jpg",
+                    sourceLabel: "上游完整样板 1"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -596,6 +994,13 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .general,
             tags: ["开源风格", "MIT", "信息图与教育视觉"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/infographic-edu-visual.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：32322",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "8B196338-3284-5DDE-9275-378345C5FEC5")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787466537773_lhlib8_HQVoTC-a0AAbNyI.jpg",
+                    sourceLabel: "上游完整样板 1"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -613,6 +1018,28 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .general,
             tags: ["开源风格", "MIT", "综合视觉"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/others.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：151",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "BD673BC9-77D5-5592-9B3A-66F3AB36D3C1")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1763886933714_5zqn1e_G6QBjQHbgAE3Yt_.jpg",
+                    sourceLabel: "上游完整样板 1"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "AD9CA93A-7DE5-5EAE-9FE6-8F0FC6C12C02")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1763886938314_wbcfc7_G6QBiiracAInQ8z.jpg",
+                    sourceLabel: "上游完整样板 2"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "38B5418C-B288-54FD-8084-F69C8E2E67E6")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1763886941069_1d9ace_G6QBii_acAIRxKd.jpg",
+                    sourceLabel: "上游完整样板 3"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "117A0EBE-DC21-5721-8A87-321CA90AF444")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1763886946388_nwahev_G6QBikOaEAAmYkO.jpg",
+                    sourceLabel: "上游完整样板 4"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -630,6 +1057,13 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .general,
             tags: ["开源风格", "MIT", "综合视觉"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/others.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：32413",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "E5BCBDAF-BF21-506C-9DE4-C79BE6F9FAAF")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787552793635_cmwx69_HQbC89_WsAAXS3h.jpg",
+                    sourceLabel: "上游完整样板 1"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -647,6 +1081,13 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .general,
             tags: ["开源风格", "MIT", "综合视觉"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/others.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：32198",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "38415B3B-7672-57AA-BF8E-7E1F41096456")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787379859767_tmhbwg_HPCB5X-WkAEMmbf.jpg",
+                    sourceLabel: "上游完整样板 1"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -664,6 +1105,28 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .general,
             tags: ["开源风格", "MIT", "综合视觉"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/others.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：32101",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "6E5170D7-42CE-5711-A4C8-56DCDD33B881")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787293544474_wnrzdy_HQKbHMUWcAEvEG6.jpg",
+                    sourceLabel: "上游完整样板 1"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "2B052F6E-09DB-52DC-A756-2CBC54261625")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787293544259_qklyok_HQKbHMOWwAAANx4.jpg",
+                    sourceLabel: "上游完整样板 2"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "70DCD0EE-8DBE-5627-A736-D0FC3B72EE0D")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787293544539_fjpf1u_HQKbHMeXYAAsjDS.jpg",
+                    sourceLabel: "上游完整样板 3"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "988096D3-5301-55BE-B18A-D590CC883FEA")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787293545226_jwjbkl_HQKbHMLW8AANU-_.jpg",
+                    sourceLabel: "上游完整样板 4"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -681,6 +1144,18 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .general,
             tags: ["开源风格", "MIT", "综合视觉"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/others.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：31654",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "3318CE1D-457B-51B3-A0B6-B9A52BD2A01C")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1786947843973_bf0jlx_HP2zVJWbEAAKpZk.jpg",
+                    sourceLabel: "上游完整样板 1"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "0750F004-90C9-56F7-B7F3-744F5C49D941")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1786947843685_ypbnu6_HP2zW_raoAA1Rv0.jpg",
+                    sourceLabel: "上游完整样板 2"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -698,6 +1173,13 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .general,
             tags: ["开源风格", "MIT", "综合视觉"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/others.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：31576",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "24AD7BD1-5F93-5100-8BE4-F16F6E126261")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1786861132845_lqtxor_HP0PIaCacAA8zdI.jpg",
+                    sourceLabel: "上游完整样板 1"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -715,6 +1197,13 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .general,
             tags: ["开源风格", "MIT", "综合视觉"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/others.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：31257",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "E87DF50C-2A6B-5847-BFF8-FBB15DF5FBEC")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1786603824925_c9lra3_HPe5zaIa0AAI0z_.jpg",
+                    sourceLabel: "上游完整样板 1"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -732,6 +1221,13 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .scene,
             tags: ["开源风格", "MIT", "海报与传单"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/poster-flyer.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：4031",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "FBF78D9D-6502-515D-998D-2D7FF30AE1EE")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1767455034932_ivuvu0_G9V-MszakAEAIBw.jpg",
+                    sourceLabel: "上游完整样板 1"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -749,6 +1245,13 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .scene,
             tags: ["开源风格", "MIT", "海报与传单"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/poster-flyer.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：811",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "81E76045-264F-5040-B03E-DA80409248A5")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1764915832381_renotr_G7FuPlzbYAAsuo2.jpg",
+                    sourceLabel: "上游完整样板 1"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -766,6 +1269,28 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .scene,
             tags: ["开源风格", "MIT", "海报与传单"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/poster-flyer.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：32415",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "E4977BBE-C6BD-5246-8383-43B86D937DBD")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787552797427_lczxin_HQZf22ibcAA1YRN.jpg",
+                    sourceLabel: "上游完整样板 1"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "0698B26E-18AC-598F-89C8-21E83A563B1A")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787552795172_dxlucs_HQZf3NgbAAAYzq_.jpg",
+                    sourceLabel: "上游完整样板 2"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "A67E7B29-75D1-5CB1-AF0C-11DFFF7E95D7")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787552794987_4294q8_HQZf3lEaAAAOh4N.jpg",
+                    sourceLabel: "上游完整样板 3"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "7EE25783-B906-5B92-A065-59E68CB465CD")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787552796054_ktqab5_HQZf36LbMAAahp3.jpg",
+                    sourceLabel: "上游完整样板 4"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -783,6 +1308,13 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .scene,
             tags: ["开源风格", "MIT", "海报与传单"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/poster-flyer.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：32320",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "8C730F83-4DB6-53EF-A1A0-27809EFCEE48")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787552781907_ioqdbz_HQXwyVJbgAA-pja.jpg",
+                    sourceLabel: "上游完整样板 1"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -800,6 +1332,13 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .scene,
             tags: ["开源风格", "MIT", "海报与传单"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/poster-flyer.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：32001",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "1C98C43A-249C-5DFA-B128-AE867E3C8854")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787293549342_krdloa_HQJBFD2bYAAgr0I.jpg",
+                    sourceLabel: "上游完整样板 1"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -817,6 +1356,13 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .scene,
             tags: ["开源风格", "MIT", "海报与传单"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/poster-flyer.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：31994",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "91AC88D6-C6D3-58ED-9E9D-0998CA2192F3")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787208874237_2kxqk9_HQGM1nRbQAERSz9.jpg",
+                    sourceLabel: "上游完整样板 1"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -834,6 +1380,18 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .scene,
             tags: ["开源风格", "MIT", "海报与传单"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/poster-flyer.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：31881",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "1CFB2B78-CAF1-5303-BB1F-E167EF825269")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787120735922_0thggg_HQAu2vRXcAAXq0F.jpg",
+                    sourceLabel: "上游完整样板 1"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "98FB52FC-53F8-5FB9-961F-319A3C521B8B")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787120736017_int9d8_HQAu2tOWgAAgL8J.jpg",
+                    sourceLabel: "上游完整样板 2"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -851,6 +1409,13 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .character,
             tags: ["开源风格", "MIT", "人物头像"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/profile-avatar.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：553",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "EE7FA47B-4BF2-5236-8E42-B6ADFAD79D0B")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1763889946850_689z0h_G23i3sJW0AASGUw.jpg",
+                    sourceLabel: "上游完整样板 1"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -868,6 +1433,18 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .character,
             tags: ["开源风格", "MIT", "人物头像"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/profile-avatar.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：32664",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "4F7AB362-553E-5798-9932-78EC51E5F425")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787824275452_qxzfka_HQeCMfWacAAsUK-.jpg",
+                    sourceLabel: "上游完整样板 1"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "CD968DD3-0C50-562B-BD5E-26C412B90E4B")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787824275628_agzj7o_HQeCMeobcAATUT8.jpg",
+                    sourceLabel: "上游完整样板 2"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -885,6 +1462,23 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .character,
             tags: ["开源风格", "MIT", "人物头像"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/profile-avatar.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：32676",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "F45A3530-B7D4-53EB-A2D6-90496FB36A55")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787824284221_4mi4ga_HQpvjbDbQAA592-.jpg",
+                    sourceLabel: "上游完整样板 1"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "D093C7A6-EE98-51BB-9014-48E9AC49FBC5")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787824284231_bh70nm_HQpvlF0bkAAcy9p.jpg",
+                    sourceLabel: "上游完整样板 2"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "E81516DB-4828-5AC6-B9C7-A8BED2D0F2A4")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787824284217_wn405n_HQpvmv-bYAAvkU7.jpg",
+                    sourceLabel: "上游完整样板 3"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -902,6 +1496,18 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .character,
             tags: ["开源风格", "MIT", "人物头像"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/profile-avatar.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：32674",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "13033A7B-7D81-594F-A86B-1ED7E30F43A0")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787824282105_6h1dj7_HQpqcCGakAA0dwE.jpg",
+                    sourceLabel: "上游完整样板 1"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "6EDE2A6E-27E8-5CE0-90F1-9796B00E4627")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787824282162_syoid3_HQpqfNYa8AAumB0.jpg",
+                    sourceLabel: "上游完整样板 2"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -919,6 +1525,28 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .character,
             tags: ["开源风格", "MIT", "人物头像"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/profile-avatar.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：32671",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "28F4A42F-2F34-5DB7-8293-0D5A8067A517")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787824280165_1ba9ez_HQdT74pbkAAZgG1.jpg",
+                    sourceLabel: "上游完整样板 1"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "E78A65E2-A38E-5ABA-BC17-5D8AD4C5E1F4")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787824280153_xcbqtv_HQdT74qbUAAXSXo.jpg",
+                    sourceLabel: "上游完整样板 2"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "D1BFD15A-740E-5F4A-AAD4-02A6E62011CB")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787824280149_wv5fi9_HQdT747akAAhcLp.jpg",
+                    sourceLabel: "上游完整样板 3"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "4354E820-4D4B-58A7-B66A-DB4CFC90D157")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787824280946_vkoage_HQdT74vawAAWnpF.jpg",
+                    sourceLabel: "上游完整样板 4"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -936,6 +1564,13 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .character,
             tags: ["开源风格", "MIT", "人物头像"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/profile-avatar.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：32668",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "C7F77E43-2AA0-5A61-9B53-47ED43316E69")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787824278434_jjgpzu_HQdTaFKakAArnKG.jpg",
+                    sourceLabel: "上游完整样板 1"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
@@ -953,6 +1588,23 @@ nonisolated enum ImportedStylePromptCatalog {
             category: .character,
             tags: ["开源风格", "MIT", "人物头像"],
             notes: "来源：YouMind-OpenLab/ai-image-prompts-skill/references/profile-avatar.json；固定提交 7c065c2b429bc75334239965768849cb00c8987d；MIT License；原始 ID：32663",
+            sampleMedia: [
+                StyleSampleMedia(
+                    id: UUID(uuidString: "242981B3-4E7E-5505-BA57-D09DE86F948F")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787824275384_ydwz3e_HQdTD8aaQAA6osZ.jpg",
+                    sourceLabel: "上游完整样板 1"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "067DCD33-0635-591A-9D9D-E211ED1EDA6B")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787824275347_xlkvgx_HQdTD-RbAAAXEN_.jpg",
+                    sourceLabel: "上游完整样板 2"
+                ),
+                StyleSampleMedia(
+                    id: UUID(uuidString: "CF14582C-94D2-54EB-B712-2E84013CDA66")!,
+                    remoteURLString: "https://cms-assets.youmind.com/media/1787824275282_fnxqoj_HQdTD8yb0AActev.jpg",
+                    sourceLabel: "上游完整样板 3"
+                )
+            ],
             isPromptLocked: true,
             isBuiltIn: true,
             provenance: StylePromptProvenance(
