@@ -167,14 +167,17 @@ nonisolated struct ArkImageGenerationClient: Sendable {
         recipe: ImageGenerationRecipe,
         referenceImages: [Data]
     ) async throws -> [ArtGeneratedImagePayload] {
+        let framedPrompt = prompt
+            + "\n\n【输出画幅】\n"
+            + recipe.resolvedAspectRatio.promptInstruction
         let cleanNegative = negativePrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         let resolvedPrompt = cleanNegative.isEmpty
-            ? prompt
-            : prompt + "\n\n必须避免：" + cleanNegative
+            ? framedPrompt
+            : framedPrompt + "\n\n必须避免：" + cleanNegative
         var body: [String: Any] = [
             "model": recipe.model.isEmpty ? configuration.model : recipe.model,
             "prompt": resolvedPrompt,
-            "size": recipe.size,
+            "size": recipe.providerSize,
             "response_format": "b64_json",
             "watermark": recipe.watermark,
         ]

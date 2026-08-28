@@ -179,8 +179,8 @@ final class ArtDepartmentV2Tests: XCTestCase {
         XCTAssertThrowsError(try StyleLibraryVault.open(tampered, using: key))
     }
 
-    func testWorkspaceSchemaIsAutomaticV6() {
-        XCTAssertEqual(ArtDepartmentWorkspaceDocument.empty.schemaVersion, 6)
+    func testWorkspaceSchemaIsAutomaticV7() {
+        XCTAssertEqual(ArtDepartmentWorkspaceDocument.empty.schemaVersion, 7)
         XCTAssertEqual(ArtWorkspaceSection.assets.rawValue, "自动资产库")
         XCTAssertEqual(ScriptPipelineStage.completed.title, "资产已就绪")
     }
@@ -489,6 +489,114 @@ final class ArtDepartmentV2Tests: XCTestCase {
             styleCards: [changedStyle],
             mode: .textToImage
         ))
+    }
+
+
+    func testSceneDeliveryStandardForbidsPeopleAndClutter() {
+        let positive = AssetDeliveryStandard.positiveInstruction(for: .scene)
+        let negative = AssetDeliveryStandard.negativeInstruction(for: .scene)
+        XCTAssertTrue(positive.contains("无人空场景"))
+        XCTAssertTrue(positive.contains("不得出现人物"))
+        XCTAssertTrue(positive.contains("散乱物"))
+        XCTAssertTrue(negative.contains("人物"))
+        XCTAssertTrue(negative.contains("杂物堆"))
+    }
+
+    func testCharacterDeliveryStandardRequiresWhiteFourViewSheet() {
+        let positive = AssetDeliveryStandard.positiveInstruction(for: .character)
+        let negative = AssetDeliveryStandard.negativeInstruction(for: .character)
+        XCTAssertTrue(positive.contains("纯白无缝背景"))
+        XCTAssertTrue(positive.contains("头肩特写"))
+        XCTAssertTrue(positive.contains("严格正视图"))
+        XCTAssertTrue(positive.contains("严格 90° 侧视图"))
+        XCTAssertTrue(positive.contains("严格 180° 背视图"))
+        XCTAssertTrue(positive.contains("双手自然垂放"))
+        XCTAssertTrue(positive.contains("面部无表情"))
+        XCTAssertTrue(positive.contains("均匀无方向性棚拍光"))
+        XCTAssertTrue(negative.contains("非白背景"))
+        XCTAssertTrue(negative.contains("三分之四视角"))
+    }
+
+    func testAspectRatioMapsToArkPixelSize() {
+        var recipe = ImageGenerationRecipe.arkDefault
+        recipe.aspectRatio = .landscape16x9
+        XCTAssertEqual(recipe.providerSize, "2848x1600")
+        recipe.aspectRatio = .portrait9x16
+        XCTAssertEqual(recipe.providerSize, "1600x2848")
+        recipe.aspectRatio = .portrait3x4
+        XCTAssertEqual(recipe.providerSize, "1728x2304")
+        recipe.size = "1K"
+        XCTAssertEqual(recipe.providerSize, "864x1152")
+        recipe.size = "2048x1024"
+        XCTAssertEqual(recipe.providerSize, "2048x1024")
+    }
+
+    func testSelectableGenerationModesAvoidConflictingLegacyLineup() {
+        let characterModes = ImageGenerationMode.selectableCases(for: .character)
+        XCTAssertFalse(characterModes.contains(.characterLineup))
+        XCTAssertFalse(characterModes.contains(.reverseShot))
+        XCTAssertTrue(characterModes.contains(.textToImage))
+        XCTAssertTrue(ImageGenerationMode.selectableCases(for: .scene).contains(.reverseShot))
+    }
+
+    func testCharacterPromptIncludesMandatoryDeliveryStandard() {
+        let sceneID = UUID()
+        let asset = ProductionAsset(
+            kind: .character,
+            canonicalName: "小雨",
+            summary: "主要人物",
+            visualDescription: "十七岁的女孩，穿旧校服",
+            designFacts: [
+                AssetDesignFact(
+                    kind: .identityRole,
+                    value: "学生小雨",
+                    evidence: "学生小雨",
+                    sceneID: sceneID,
+                    sceneHeading: "内. 教室 - 日"
+                ),
+                AssetDesignFact(
+                    kind: .ageRange,
+                    value: "17 岁",
+                    evidence: "十七岁的学生小雨",
+                    sceneID: sceneID,
+                    sceneHeading: "内. 教室 - 日"
+                ),
+                AssetDesignFact(
+                    kind: .costume,
+                    value: "洗得发白的旧校服",
+                    evidence: "穿着洗得发白的旧校服",
+                    sceneID: sceneID,
+                    sceneHeading: "内. 教室 - 日"
+                )
+            ],
+            sourceEvidence: [
+                EvidenceQuote(
+                    sceneID: sceneID,
+                    sceneHeading: "内. 教室 - 日",
+                    quote: "十七岁的学生小雨穿着洗得发白的旧校服",
+                    explanation: "人物关键设计依据"
+                )
+            ],
+            modelConfidence: 1,
+            validatedConfidence: 1,
+            reviewDecision: .accepted,
+            firstSceneOrder: 0
+        )
+        let style = StylePromptCard(
+            title: "中性写实",
+            prompt: "电影级写实摄影，中性白平衡，均匀漫射光，低畸变构图。",
+            category: .general
+        )
+        let plan = ArtDepartmentV2Pipeline.fallbackPromptPlan(
+            asset: asset,
+            styleCards: [style],
+            mode: .textToImage,
+            direction: ""
+        )
+        XCTAssertTrue(plan.positivePrompt.contains("纯白无缝背景"))
+        XCTAssertTrue(plan.positivePrompt.contains("头肩特写"))
+        XCTAssertTrue(plan.positivePrompt.contains("严格 180° 背视图"))
+        XCTAssertTrue(plan.negativePrompt.contains("非白背景"))
     }
 
 }

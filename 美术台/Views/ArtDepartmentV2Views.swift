@@ -709,6 +709,13 @@ private struct GenerationStudioWorkspace: View {
             .pickerStyle(.segmented)
             .onChange(of: store.selectedAssetKind) { _, _ in
                 store.selectedAssetID = store.filteredAssets.first?.id
+                let modes = ImageGenerationMode.selectableCases(
+                    for: store.selectedAssetKind
+                )
+                if !modes.contains(store.generationMode) {
+                    store.generationMode = .textToImage
+                }
+                store.promptPlan = .empty
             }
             List(store.filteredAssets, selection: $store.selectedAssetID) { asset in
                 Text(asset.canonicalName).tag(asset.id)
@@ -716,9 +723,55 @@ private struct GenerationStudioWorkspace: View {
 
             Text("生成模式").font(.headline)
             Picker("模式", selection: $store.generationMode) {
-                ForEach(ImageGenerationMode.allCases) { mode in
+                ForEach(ImageGenerationMode.selectableCases(for: store.selectedAssetKind)) { mode in
                     Text(mode.rawValue).tag(mode)
                 }
+            }
+
+            Text("资产交付规范").font(.headline)
+            Label(
+                AssetDeliveryStandard.summary(for: store.selectedAssetKind),
+                systemImage: store.selectedAssetKind == .character
+                    ? "person.crop.rectangle.stack"
+                    : "viewfinder"
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(10)
+            .background(.blue.opacity(0.07), in: RoundedRectangle(cornerRadius: 9))
+
+            Text("画幅比例").font(.headline)
+            Picker(
+                "比例",
+                selection: Binding(
+                    get: { store.generationRecipe.resolvedAspectRatio },
+                    set: { value in store.generationRecipe.aspectRatio = value }
+                )
+            ) {
+                ForEach(ImageAspectRatio.allCases) { ratio in
+                    Text(ratio.title).tag(ratio)
+                }
+            }
+            .pickerStyle(.menu)
+            HStack {
+                Text("Ark 输出尺寸")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(store.generationRecipe.providerSize)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            if store.selectedAssetKind == .character
+                && store.generationRecipe.resolvedAspectRatio.isPortrait
+            {
+                Label(
+                    "四视图横排在 16:9、4:3 或 3:2 下更稳定；竖幅仍可按项目需要选择。",
+                    systemImage: "info.circle"
+                )
+                .font(.caption2)
+                .foregroundStyle(.orange)
             }
 
             Text("补充要求").font(.headline)
@@ -895,6 +948,9 @@ private struct GeneratedImageCard: View {
                 .font(.headline)
             Text(record.createdAt.formatted(date: .abbreviated, time: .shortened))
                 .font(.caption)
+                .foregroundStyle(.secondary)
+            Text("\(record.recipe.resolvedAspectRatio.rawValue) · \(record.recipe.providerSize)")
+                .font(.caption2.monospacedDigit())
                 .foregroundStyle(.secondary)
         }
         .padding(12)
