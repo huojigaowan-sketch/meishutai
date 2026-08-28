@@ -297,6 +297,7 @@ nonisolated struct ProductionAsset: Codable, Hashable, Identifiable, Sendable {
     var materialNotes: String
     var compositionNotes: String
     var elementNotes: String
+    var designFacts: [AssetDesignFact]?
     var sourceEvidence: [EvidenceQuote]
     var modelConfidence: Double
     var validatedConfidence: Double
@@ -321,6 +322,7 @@ nonisolated struct ProductionAsset: Codable, Hashable, Identifiable, Sendable {
         materialNotes: String = "",
         compositionNotes: String = "",
         elementNotes: String = "",
+        designFacts: [AssetDesignFact]? = nil,
         sourceEvidence: [EvidenceQuote],
         modelConfidence: Double,
         validatedConfidence: Double,
@@ -344,6 +346,7 @@ nonisolated struct ProductionAsset: Codable, Hashable, Identifiable, Sendable {
         self.materialNotes = materialNotes
         self.compositionNotes = compositionNotes
         self.elementNotes = elementNotes
+        self.designFacts = designFacts
         self.sourceEvidence = sourceEvidence
         self.modelConfidence = min(1, max(0, modelConfidence))
         self.validatedConfidence = min(1, max(0, validatedConfidence))
@@ -490,6 +493,8 @@ nonisolated struct ArtPromptPlan: Codable, Hashable, Sendable {
     var lockedFacts: [String]
     var chosenStyleCardIDs: [UUID]
     var rationale: String
+    var assetDesignPrompt: String? = nil
+    var styleTreatmentPrompt: String? = nil
 
     static let empty = ArtPromptPlan(
         title: "",
@@ -620,7 +625,7 @@ nonisolated struct ArtDepartmentWorkspaceDocument: Codable, Hashable, Sendable {
     var updatedAt: Date
 
     static let empty = ArtDepartmentWorkspaceDocument(
-        schemaVersion: 5,
+        schemaVersion: 6,
         projects: [],
         styleCards: BuiltInStylePromptCatalog.cards,
         updatedAt: .now
@@ -645,6 +650,8 @@ nonisolated enum ArtDepartmentV2Error: LocalizedError {
     case cannotModifyBuiltIn
     case styleBranchCycle
     case remoteSampleUnavailable
+    case stylePromptContainsSubject([String])
+    case stylePromptMustDescribeVisualStyle
 
     var errorDescription: String? {
         switch self {
@@ -665,6 +672,8 @@ nonisolated enum ArtDepartmentV2Error: LocalizedError {
         case .cannotModifyBuiltIn: "内置开源模板不可直接修改或删除，请在它下面建立可编辑分支。"
         case .styleBranchCycle: "风格分支不能把自身或后代设为父节点。"
         case .remoteSampleUnavailable: "上游样板图暂时不可用，可稍后重试或为分支上传本地样板。"
+        case .stylePromptContainsSubject(let reasons): "风格提示词只能描述视觉处理，不能包含具体人物、场景或道具：\(reasons.joined(separator: "；"))"
+        case .stylePromptMustDescribeVisualStyle: "请输入可复用的视觉风格：媒介、渲染、色彩、光线、构图、镜头、线条、质感或氛围。"
         }
     }
 }

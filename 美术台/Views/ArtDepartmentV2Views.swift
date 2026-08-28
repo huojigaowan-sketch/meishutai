@@ -515,8 +515,28 @@ private struct AutomaticAssetDetail: View {
                 }
 
                 readOnlyField("摘要", value: asset.summary)
+                readOnlyField("资产设计提示词", value: asset.designPrompt)
                 readOnlyField("视觉描述", value: asset.visualDescription)
                 readOnlyField("连续性状态", value: asset.continuityState)
+
+                if !asset.verifiedDesignFacts.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("剧本提取的关键设计事实")
+                            .font(.headline)
+                        ForEach(asset.verifiedDesignFacts) { fact in
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("\(fact.kind.title)：\(fact.value)")
+                                    .font(.callout.weight(.semibold))
+                                Text("逐字依据：‘\(fact.evidence)’")
+                                    .font(.caption.monospaced())
+                                    .foregroundStyle(.secondary)
+                                    .textSelection(.enabled)
+                            }
+                            .padding(10)
+                            .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 9))
+                        }
+                    }
+                }
 
                 HStack(alignment: .top, spacing: 12) {
                     readOnlyField("材质", value: asset.materialNotes)
@@ -663,11 +683,11 @@ private struct GenerationStudioWorkspace: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("生图工坊")
                     .font(.system(.largeTitle, design: .rounded, weight: .bold))
-                Text("自动核验资产 + 用户明确选择的图书馆/外部风格 → Apple Schema 提示词 → Ark")
+                Text("剧本关键设计事实（唯一主体来源）+ 用户选择的纯视觉风格 → Ark")
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Button("加入本轮参考图", systemImage: "photo.badge.plus", action: onImportReference)
+            Button("加入内容参考图", systemImage: "photo.badge.plus", action: onImportReference)
                 .buttonStyle(.bordered)
             Button("直接生图", systemImage: "wand.and.stars") {
                 Task { await store.generateImages() }
@@ -736,7 +756,7 @@ private struct GenerationStudioWorkspace: View {
             }
 
             Divider()
-            Text("本轮外部风格").font(.headline)
+            Text("本轮外部纯风格").font(.headline)
             TextField("名称（可选）", text: $store.externalStyleTitle)
                 .onChange(of: store.externalStyleTitle) { _, _ in
                     store.persistExternalStyleDraft()
@@ -756,7 +776,7 @@ private struct GenerationStudioWorkspace: View {
                 .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 9))
                 .overlay(alignment: .topLeading) {
                     if store.externalStylePrompt.isEmpty {
-                        Text("粘贴从别处获得或正在测试的风格提示词")
+                        Text("只粘贴媒介、色彩、光线、构图、镜头、质感与氛围；不要写具体主体")
                             .font(.caption)
                             .foregroundStyle(.tertiary)
                             .padding(12)
@@ -773,7 +793,7 @@ private struct GenerationStudioWorkspace: View {
             .disabled(store.externalStylePrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
             if !store.hasExplicitStyleSelection {
-                Label("请明确选择图书馆卡片，或输入本轮外部风格。", systemImage: "exclamationmark.triangle")
+                Label("请明确选择图书馆卡片，或输入本轮外部纯风格。", systemImage: "exclamationmark.triangle")
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
@@ -785,7 +805,7 @@ private struct GenerationStudioWorkspace: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Text("Apple GenerationSchema 提示词计划").font(.headline)
+                    Text("资产设计 + 纯风格双层提示词").font(.headline)
                     Spacer()
                     Button("重新规划", systemImage: "arrow.clockwise") {
                         Task { await store.planGenerationPrompt() }
@@ -793,7 +813,7 @@ private struct GenerationStudioWorkspace: View {
                     .disabled(store.isWorking || store.selectedAsset == nil || !store.hasExplicitStyleSelection)
                 }
                 PromptField(title: "标题", text: $store.promptPlan.title, minHeight: 38)
-                PromptField(title: "主体", text: $store.promptPlan.subject)
+                PromptField(title: "资产设计（唯一主体来源）", text: $store.promptPlan.subject)
                 HStack(alignment: .top, spacing: 10) {
                     PromptField(title: "材质", text: $store.promptPlan.materials)
                     PromptField(title: "构图", text: $store.promptPlan.composition)

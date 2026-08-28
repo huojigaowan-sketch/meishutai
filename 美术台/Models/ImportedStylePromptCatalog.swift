@@ -10,7 +10,7 @@ nonisolated enum ImportedStylePromptCatalog {
     static let sourceFileCount = 8
     static let importedCardCount = 56
 
-    static let cards: [StylePromptCard] = [
+    private static let upstreamCards: [StylePromptCard] = [
         StylePromptCard(
             id: UUID(uuidString: "72C8588B-EEAD-598C-A121-43CB1B7B32D1")!,
             title: "Luxurious Retrofuturistic Train Exterior",
@@ -1616,4 +1616,11 @@ nonisolated enum ImportedStylePromptCatalog {
             )
         )
     ]
+
+    /// Public cards are compiled from the pinned upstream source into
+    /// subject-neutral visual treatments. The raw vendored prompts remain
+    /// private provenance data and never enter the runtime style library.
+    static let cards: [StylePromptCard] = upstreamCards.enumerated().map { pair in
+        StyleOnlyPromptPolicy.purifiedBuiltInCard(pair.element, index: pair.offset)
+    }
 }

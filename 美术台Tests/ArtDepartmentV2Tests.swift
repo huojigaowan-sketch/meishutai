@@ -164,7 +164,7 @@ final class ArtDepartmentV2Tests: XCTestCase {
     }
 
     func testWorkspaceSchemaIsAutomaticV5() {
-        XCTAssertEqual(ArtDepartmentWorkspaceDocument.empty.schemaVersion, 5)
+        XCTAssertEqual(ArtDepartmentWorkspaceDocument.empty.schemaVersion, 6)
         XCTAssertEqual(ArtWorkspaceSection.assets.rawValue, "自动资产库")
         XCTAssertEqual(ScriptPipelineStage.completed.title, "资产已就绪")
     }
@@ -183,31 +183,43 @@ final class ArtDepartmentV2Tests: XCTestCase {
         let root = StylePromptCard(
             id: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!,
             title: "电影写实",
-            prompt: "电影写实，真实材质",
+            prompt: "电影级写实摄影，真实材质质感",
             category: .general,
             sampleMedia: [StyleSampleMedia(remoteURLString: "https://example.com/root.jpg")]
         )
         let child = StylePromptCard(
             id: UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")!,
-            title: "冷月光",
-            prompt: "改为低照度冷月光",
+            title: "冷色侧光",
+            prompt: "光线处理改为低照度冷色侧光",
             category: .scene,
             parentID: root.id,
             lifecycleRawValue: StylePromptLifecycle.library.rawValue
         )
         let grandchild = StylePromptCard(
             id: UUID(uuidString: "CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC")!,
-            title: "潮湿地面",
-            prompt: "增加潮湿地面反射",
+            title: "湿润反射质感",
+            prompt: "表面质感增加湿润高光与柔和反射",
             category: .scene,
             parentID: child.id,
             lifecycleRawValue: StylePromptLifecycle.library.rawValue
         )
         let cards = [root, child, grandchild]
         let resolved = StylePromptResolver.resolvedPrompt(for: grandchild.id, in: cards)
-        XCTAssertTrue(resolved.contains("电影写实"))
-        XCTAssertTrue(resolved.contains("冷月光"))
-        XCTAssertTrue(resolved.contains("潮湿地面"))
+        XCTAssertTrue(resolved.contains("电影级写实摄影"))
+        XCTAssertTrue(resolved.contains("低照度冷色侧光"))
+        XCTAssertTrue(resolved.contains("湿润高光与柔和反射"))
+        XCTAssertTrue(resolved.contains("【视觉风格】"))
+        XCTAssertTrue(resolved.contains("【主体中立规则】"))
+        let rootRange = resolved.range(of: "电影级写实摄影")
+        let childRange = resolved.range(of: "低照度冷色侧光")
+        let grandchildRange = resolved.range(of: "湿润高光与柔和反射")
+        XCTAssertNotNil(rootRange)
+        XCTAssertNotNil(childRange)
+        XCTAssertNotNil(grandchildRange)
+        if let rootRange, let childRange, let grandchildRange {
+            XCTAssertLessThan(rootRange.lowerBound, childRange.lowerBound)
+            XCTAssertLessThan(childRange.lowerBound, grandchildRange.lowerBound)
+        }
         XCTAssertEqual(
             StylePromptResolver.resolvedSamples(for: grandchild.id, in: cards).count,
             1
@@ -249,4 +261,114 @@ final class ArtDepartmentV2Tests: XCTestCase {
         )
         XCTAssertGreaterThanOrEqual(strong.weightedScore, AssetReliabilityV4.productionThreshold)
     }
+
+    func testPublicStyleCatalogContainsOnlySubjectNeutralVisualTreatments() {
+        let cards = ImportedStylePromptCatalog.cards
+        XCTAssertEqual(cards.count, 56)
+        XCTAssertTrue(cards.allSatisfy(\.isSubjectNeutralStyle))
+        XCTAssertTrue(cards.allSatisfy { StyleOnlyPromptPolicy.isSubjectNeutralTitle($0.title) })
+        XCTAssertFalse(cards.map(\.prompt).joined(separator: "\n").contains("young woman"))
+        XCTAssertFalse(cards.map(\.prompt).joined(separator: "\n").contains("retrofuturistic train"))
+    }
+
+    func testConcreteSubjectCannotBeSavedAsAStylePrompt() {
+        let bad = StyleOnlyPromptPolicy.assessment(
+            "A young woman wearing a red dress stands in a kitchen holding a passport."
+        )
+        XCTAssertFalse(bad.isStyleOnly)
+        XCTAssertThrowsError(try StyleOnlyPromptPolicy.validatedUserPrompt(
+            "A young woman wearing a red dress stands in a kitchen holding a passport."
+        ))
+        XCTAssertNoThrow(try StyleOnlyPromptPolicy.validatedUserPrompt(
+            "电影级写实摄影，低饱和冷色体系，柔和侧光，克制构图，细颗粒表面质感。"
+        ))
+    }
+
+    func testStyleSamplesArePreviewOnlyProviderReferences() {
+        XCTAssertFalse(GenerationReferencePolicy.shouldSendToProvider(.stylePreview))
+        XCTAssertTrue(GenerationReferencePolicy.shouldSendToProvider(.userContentReference))
+    }
+
+    func testCharacterDesignPromptUsesGroundedAgeGenderAndCostumeFacts() {
+        let sceneID = UUID()
+        let asset = ProductionAsset(
+            kind: .character,
+            canonicalName: "小雨",
+            summary: "主要人物",
+            visualDescription: "十七岁的女孩，穿旧校服",
+            designFacts: [
+                AssetDesignFact(
+                    kind: .ageRange,
+                    value: "17 岁",
+                    evidence: "十七岁的女孩小雨",
+                    sceneID: sceneID,
+                    sceneHeading: "内. 教室 - 日"
+                ),
+                AssetDesignFact(
+                    kind: .genderPresentation,
+                    value: "女性",
+                    evidence: "十七岁的女孩小雨",
+                    sceneID: sceneID,
+                    sceneHeading: "内. 教室 - 日"
+                ),
+                AssetDesignFact(
+                    kind: .costume,
+                    value: "洗得发白的旧校服",
+                    evidence: "穿着洗得发白的旧校服",
+                    sceneID: sceneID,
+                    sceneHeading: "内. 教室 - 日"
+                )
+            ],
+            sourceEvidence: [
+                EvidenceQuote(
+                    sceneID: sceneID,
+                    sceneHeading: "内. 教室 - 日",
+                    quote: "十七岁的女孩小雨穿着洗得发白的旧校服",
+                    explanation: "人物关键设计依据"
+                )
+            ],
+            modelConfidence: 1,
+            validatedConfidence: 1,
+            reviewDecision: .accepted,
+            firstSceneOrder: 0
+        )
+        XCTAssertTrue(AssetDesignReadiness.isReady(asset))
+        XCTAssertTrue(asset.designPrompt.contains("17 岁"))
+        XCTAssertTrue(asset.designPrompt.contains("女性"))
+        XCTAssertTrue(asset.designPrompt.contains("旧校服"))
+    }
+
+    func testNameOnlyAssetsCannotEnterGenerationReadyLibrary() {
+        let sceneID = UUID()
+        let prop = ProductionAsset(
+            kind: .prop,
+            canonicalName: "护照",
+            summary: "道具名称",
+            visualDescription: "护照",
+            designFacts: [
+                AssetDesignFact(
+                    kind: .objectType,
+                    value: "护照",
+                    evidence: "护照",
+                    sceneID: sceneID,
+                    sceneHeading: "内. 厨房 - 夜"
+                )
+            ],
+            sourceEvidence: [
+                EvidenceQuote(
+                    sceneID: sceneID,
+                    sceneHeading: "内. 厨房 - 夜",
+                    quote: "护照",
+                    explanation: "仅证明名称"
+                )
+            ],
+            modelConfidence: 1,
+            validatedConfidence: 1,
+            reviewDecision: .accepted,
+            firstSceneOrder: 0
+        )
+        XCTAssertFalse(AssetDesignReadiness.isReady(prop))
+        XCTAssertTrue(AssetDesignReadiness.missingReason(prop).contains("只有名称"))
+    }
+
 }

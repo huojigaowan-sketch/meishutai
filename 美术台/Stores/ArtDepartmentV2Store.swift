@@ -334,9 +334,15 @@ final class ArtDepartmentV2Store {
         notes: String,
         imageURL: URL?
     ) async {
-        let cleanTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        let cleanPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cleanTitle.isEmpty, !cleanPrompt.isEmpty else { return }
+        let cleanTitle: String
+        let cleanPrompt: String
+        do {
+            cleanTitle = try StyleOnlyPromptPolicy.validatedUserTitle(title)
+            cleanPrompt = try StyleOnlyPromptPolicy.validatedUserPrompt(prompt)
+        } catch {
+            errorMessage = error.localizedDescription
+            return
+        }
         var card = StylePromptCard(
             title: cleanTitle,
             prompt: cleanPrompt,
@@ -374,11 +380,19 @@ final class ArtDepartmentV2Store {
     }
 
     func updateStyleCard(_ card: StylePromptCard) {
-        guard let index = document.styleCards.firstIndex(where: { $0.id == card.id }) else { return }
-        var card = card
-        card.updatedAt = .now
-        document.styleCards[index] = card
-        Task { await persist() }
+        guard let index = document.styleCards.firstIndex(where: { $0.id == card.id }),
+              !document.styleCards[index].isBuiltIn
+        else { return }
+        do {
+            var card = card
+            card.title = try StyleOnlyPromptPolicy.validatedUserTitle(card.title)
+            card.prompt = try StyleOnlyPromptPolicy.validatedUserPrompt(card.prompt)
+            card.updatedAt = .now
+            document.styleCards[index] = card
+            Task { await persist() }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     func deleteStyleCard(_ id: UUID) {
@@ -427,10 +441,9 @@ final class ArtDepartmentV2Store {
             return
         }
         await runWork {
-            var cards = resolveStyleCards()
+            try validateExternalStyleInput()
+            let cards = resolveStyleCards()
             guard !cards.isEmpty else { throw ArtDepartmentV2Error.noSelectedStyle }
-            for card in cards { await ensureStyleSamples(for: card.id) }
-            cards = resolveStyleCards()
             let client = remoteClientIfConfigured()
             promptPlan = try await ArtDepartmentV2Pipeline.makePromptPlan(
                 asset: asset,
@@ -439,7 +452,7 @@ final class ArtDepartmentV2Store {
                 direction: generationDirection,
                 client: client
             )
-            noticeMessage = "Apple GenerationSchema 已按用户明确选择的风格生成生图计划。"
+            noticeMessage = "已按“剧本资产设计 + 用户选择的纯视觉风格”生成双层生图计划。"
         }
     }
 
@@ -450,10 +463,9 @@ final class ArtDepartmentV2Store {
             return
         }
         await runWork {
-            var cards = resolveStyleCards()
+            try validateExternalStyleInput()
+            let cards = resolveStyleCards()
             guard !cards.isEmpty else { throw ArtDepartmentV2Error.noSelectedStyle }
-            for card in cards { await ensureStyleSamples(for: card.id) }
-            cards = resolveStyleCards()
             if promptPlan.positivePrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 || promptPlan.mode != generationMode
                 || promptPlan.chosenStyleCardIDs != cards.map(\.id)
@@ -469,14 +481,11 @@ final class ArtDepartmentV2Store {
 
             let configuration = try ArkImageConfiguration.current()
             var references: [Data] = []
-            for card in cards {
-                for sample in card.styleSampleMedia {
-                    if let data = try await persistence.data(for: sample.encryptedLocalPath) {
-                        references.append(data)
-                    }
-                }
-            }
-            if let data = try await persistence.data(for: generationReferencePath) {
+            // Style samples are preview-only. Sending them as provider references
+            // would let a sample's person, place or object contaminate the asset.
+            if GenerationReferencePolicy.shouldSendToProvider(.userContentReference),
+               let data = try await persistence.data(for: generationReferencePath)
+            {
                 references.append(data)
             }
             var recipe = generationRecipe
@@ -596,6 +605,16 @@ final class ArtDepartmentV2Store {
         return ArtChatCompletionClient(configuration: configuration)
     }
 
+    private func validateExternalStyleInput() throws {
+        let prompt = externalStylePrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !prompt.isEmpty else { return }
+        _ = try StyleOnlyPromptPolicy.validatedUserPrompt(prompt)
+        let title = externalStyleTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !title.isEmpty {
+            _ = try StyleOnlyPromptPolicy.validatedUserTitle(title)
+        }
+    }
+
     private func resolveStyleCards() -> [StylePromptCard] {
         var cards = selectedStyleCards.map {
             StylePromptResolver.resolvedCard($0, in: document.styleCards)
@@ -673,7 +692,7 @@ final class ArtDepartmentV2Store {
     }
 
     private func migrateToAutomaticPipeline() {
-        document.schemaVersion = max(5, document.schemaVersion)
+        document.schemaVersion = max(6, document.schemaVersion)
         for projectIndex in document.projects.indices {
             if document.projects[projectIndex].pipelineStage == .reviewing {
                 document.projects[projectIndex].pipelineStage = .adjudicating

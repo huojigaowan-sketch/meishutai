@@ -112,9 +112,15 @@ extension ArtDepartmentV2Store {
         publish: Bool
     ) async {
         errorMessage = nil
-        let cleanTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        let cleanPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cleanTitle.isEmpty, !cleanPrompt.isEmpty else { return }
+        let cleanTitle: String
+        let cleanPrompt: String
+        do {
+            cleanTitle = try StyleOnlyPromptPolicy.validatedUserTitle(title)
+            cleanPrompt = try StyleOnlyPromptPolicy.validatedUserPrompt(prompt)
+        } catch {
+            errorMessage = error.localizedDescription
+            return
+        }
         if parentID == nil && imageURLs.isEmpty {
             errorMessage = ArtDepartmentV2Error.styleSampleRequired.localizedDescription
             return
@@ -167,8 +173,8 @@ extension ArtDepartmentV2Store {
             return
         }
         do {
-            document.styleCards[index].title = title.trimmingCharacters(in: .whitespacesAndNewlines)
-            document.styleCards[index].prompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+            document.styleCards[index].title = try StyleOnlyPromptPolicy.validatedUserTitle(title)
+            document.styleCards[index].prompt = try StyleOnlyPromptPolicy.validatedUserPrompt(prompt)
             document.styleCards[index].category = category
             document.styleCards[index].tags = tags
             document.styleCards[index].notes = notes
@@ -281,18 +287,30 @@ extension ArtDepartmentV2Store {
             scheduleExternalDraftPersist()
             return
         }
-        let title = externalStyleTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard StyleOnlyPromptPolicy.assessment(clean).isStyleOnly else {
+            return
+        }
+        let rawTitle = externalStyleTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let title: String
+        if rawTitle.isEmpty {
+            title = "外部纯风格实验"
+        } else {
+            guard let validated = try? StyleOnlyPromptPolicy.validatedUserTitle(rawTitle) else {
+                return
+            }
+            title = validated
+        }
         if let id = activeExternalStyleDraftID,
            let index = document.styleCards.firstIndex(where: { $0.id == id })
         {
-            document.styleCards[index].title = title.isEmpty ? "外部风格实验" : title
+            document.styleCards[index].title = title
             document.styleCards[index].prompt = clean
             document.styleCards[index].category = externalStyleCategory
             document.styleCards[index].updatedAt = .now
             document.styleCards[index].lifecycle = .experiment
         } else {
             let card = StylePromptCard(
-                title: title.isEmpty ? "外部风格实验" : title,
+                title: title,
                 prompt: clean,
                 category: externalStyleCategory,
                 tags: ["自动保存", "外部实验"],
@@ -331,6 +349,17 @@ extension ArtDepartmentV2Store {
         }
         guard !document.styleCards[index].styleSampleMedia.isEmpty else {
             errorMessage = ArtDepartmentV2Error.styleSampleRequired.localizedDescription
+            return
+        }
+        do {
+            document.styleCards[index].title = try StyleOnlyPromptPolicy.validatedUserTitle(
+                document.styleCards[index].title
+            )
+            document.styleCards[index].prompt = try StyleOnlyPromptPolicy.validatedUserPrompt(
+                document.styleCards[index].prompt
+            )
+        } catch {
+            errorMessage = error.localizedDescription
             return
         }
         document.styleCards[index].lifecycle = .library
