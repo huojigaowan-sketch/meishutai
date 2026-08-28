@@ -1,0 +1,90 @@
+name: Finalize V6 asset-style safety
+
+on:
+  push:
+    branches: [upgrade/style-only-asset-design-v6]
+    paths:
+      - '.github/workflows/finalize-v6.yml'
+      - 'script/finalize_v6.py'
+      - '美术台/**'
+      - '美术台Tests/**'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: meishutai-v6-finalize
+  cancel-in-progress: true
+
+jobs:
+  build-test-commit:
+    runs-on: xcode-27
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: upgrade/style-only-asset-design-v6
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          xcrun swift --version
+
+      - name: Validate finalizer
+        run: python3 -m py_compile script/finalize_v6.py
+
+      - name: Apply final safety patch
+        run: python3 script/finalize_v6.py
+
+      - name: Validate source invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          grep -q 'AssetDesignReadiness.isReady(self)' '美术台/Models/ArtDepartmentV2Models.swift'
+          grep -q 'promptPlan.requiresRebuild' '美术台/Stores/ArtDepartmentV2Store.swift'
+          grep -q 'assetDesignPrompt != asset.designPrompt' '美术台/Models/PromptPlanFreshness.swift'
+          grep -q '厨房|卧室|客厅' '美术台/Models/StyleOnlyPromptPolicy.swift'
+          grep -q 'testPromptPlanFreshnessTracksSelectedAssetAndStyleContent' '美术台Tests/ArtDepartmentV2Tests.swift'
+
+      - name: Build macOS 27 application without signing
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project '美术台.xcodeproj' \
+            -scheme '美术台' \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build | tee /tmp/meishutai-v6-final-build.log
+
+      - name: Run unit tests on hosted macOS compatibility host
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project '美术台.xcodeproj' \
+            -scheme '美术台' \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            MACOSX_DEPLOYMENT_TARGET=26.0 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            test | tee /tmp/meishutai-v6-final-tests.log
+
+      - name: Commit verified final V6 source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm '.github/workflows/finalize-v6.yml'
+          rm 'script/finalize_v6.py'
+          rm -rf 'script/__pycache__'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix: enforce generation-ready assets and prompt freshness'
+          git push origin HEAD:upgrade/style-only-asset-design-v6
