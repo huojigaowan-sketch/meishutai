@@ -365,6 +365,7 @@ nonisolated struct ProductionAsset: Codable, Hashable, Identifiable, Sendable {
         reviewDecision == .accepted
             && !canonicalName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && sourceEvidence.contains { !$0.quote.isEmpty }
+            && AssetDesignReadiness.isReady(self)
     }
 
     var isQuarantined: Bool {

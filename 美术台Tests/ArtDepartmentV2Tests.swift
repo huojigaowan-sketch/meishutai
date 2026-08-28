@@ -82,12 +82,28 @@ final class ArtDepartmentV2Tests: XCTestCase {
             kind: .prop,
             canonicalName: "护照",
             summary: "关键道具",
-            visualDescription: "一本护照",
+            visualDescription: "一本用于出入境查验的护照",
+            designFacts: [
+                AssetDesignFact(
+                    kind: .objectType,
+                    value: "护照",
+                    evidence: "一本用于出入境查验的护照",
+                    sceneID: UUID(),
+                    sceneHeading: "内. 边检大厅 - 日"
+                ),
+                AssetDesignFact(
+                    kind: .objectFunction,
+                    value: "用于出入境身份查验",
+                    evidence: "一本用于出入境查验的护照",
+                    sceneID: UUID(),
+                    sceneHeading: "内. 边检大厅 - 日"
+                )
+            ],
             sourceEvidence: [
                 EvidenceQuote(
                     sceneID: UUID(),
-                    sceneHeading: "内. 厨房 - 夜",
-                    quote: "护照",
+                    sceneHeading: "内. 边检大厅 - 日",
+                    quote: "一本用于出入境查验的护照",
                     explanation: "逐字证据"
                 )
             ],
@@ -163,7 +179,7 @@ final class ArtDepartmentV2Tests: XCTestCase {
         XCTAssertThrowsError(try StyleLibraryVault.open(tampered, using: key))
     }
 
-    func testWorkspaceSchemaIsAutomaticV5() {
+    func testWorkspaceSchemaIsAutomaticV6() {
         XCTAssertEqual(ArtDepartmentWorkspaceDocument.empty.schemaVersion, 6)
         XCTAssertEqual(ArtWorkspaceSection.assets.rawValue, "自动资产库")
         XCTAssertEqual(ScriptPipelineStage.completed.title, "资产已就绪")
@@ -279,6 +295,9 @@ final class ArtDepartmentV2Tests: XCTestCase {
         XCTAssertThrowsError(try StyleOnlyPromptPolicy.validatedUserPrompt(
             "A young woman wearing a red dress stands in a kitchen holding a passport."
         ))
+        XCTAssertThrowsError(try StyleOnlyPromptPolicy.validatedUserPrompt(
+            "厨房里的女孩拿着护照，电影级写实摄影与柔和光线。"
+        ))
         XCTAssertNoThrow(try StyleOnlyPromptPolicy.validatedUserPrompt(
             "电影级写实摄影，低饱和冷色体系，柔和侧光，克制构图，细颗粒表面质感。"
         ))
@@ -368,7 +387,108 @@ final class ArtDepartmentV2Tests: XCTestCase {
             firstSceneOrder: 0
         )
         XCTAssertFalse(AssetDesignReadiness.isReady(prop))
+        XCTAssertFalse(prop.isUsable)
         XCTAssertTrue(AssetDesignReadiness.missingReason(prop).contains("只有名称"))
+    }
+
+    func testPromptPlanFreshnessTracksSelectedAssetAndStyleContent() {
+        let sceneID = UUID()
+        let first = ProductionAsset(
+            kind: .prop,
+            canonicalName: "护照",
+            summary: "证件道具",
+            visualDescription: "用于边检",
+            designFacts: [
+                AssetDesignFact(
+                    kind: .objectType,
+                    value: "护照",
+                    evidence: "护照递到边检窗口",
+                    sceneID: sceneID,
+                    sceneHeading: "内. 边检大厅 - 日"
+                ),
+                AssetDesignFact(
+                    kind: .objectFunction,
+                    value: "边检身份查验",
+                    evidence: "护照递到边检窗口",
+                    sceneID: sceneID,
+                    sceneHeading: "内. 边检大厅 - 日"
+                )
+            ],
+            sourceEvidence: [
+                EvidenceQuote(
+                    sceneID: sceneID,
+                    sceneHeading: "内. 边检大厅 - 日",
+                    quote: "护照递到边检窗口",
+                    explanation: "道具与用途"
+                )
+            ],
+            modelConfidence: 1,
+            validatedConfidence: 1,
+            reviewDecision: .accepted,
+            firstSceneOrder: 0
+        )
+        let second = ProductionAsset(
+            kind: .prop,
+            canonicalName: "手机",
+            summary: "通讯道具",
+            visualDescription: "用于拨号",
+            designFacts: [
+                AssetDesignFact(
+                    kind: .objectType,
+                    value: "手机",
+                    evidence: "她用手机拨通电话",
+                    sceneID: sceneID,
+                    sceneHeading: "内. 候机厅 - 日"
+                ),
+                AssetDesignFact(
+                    kind: .objectFunction,
+                    value: "拨打电话",
+                    evidence: "她用手机拨通电话",
+                    sceneID: sceneID,
+                    sceneHeading: "内. 候机厅 - 日"
+                )
+            ],
+            sourceEvidence: [
+                EvidenceQuote(
+                    sceneID: sceneID,
+                    sceneHeading: "内. 候机厅 - 日",
+                    quote: "她用手机拨通电话",
+                    explanation: "道具与用途"
+                )
+            ],
+            modelConfidence: 1,
+            validatedConfidence: 1,
+            reviewDecision: .accepted,
+            firstSceneOrder: 1
+        )
+        let style = StylePromptCard(
+            title: "冷色写实",
+            prompt: "电影级写实摄影，低饱和冷色体系，柔和侧光与细颗粒质感。",
+            category: .general
+        )
+        let plan = ArtDepartmentV2Pipeline.fallbackPromptPlan(
+            asset: first,
+            styleCards: [style],
+            mode: .textToImage,
+            direction: ""
+        )
+        XCTAssertFalse(plan.requiresRebuild(
+            for: first,
+            styleCards: [style],
+            mode: .textToImage
+        ))
+        XCTAssertTrue(plan.requiresRebuild(
+            for: second,
+            styleCards: [style],
+            mode: .textToImage
+        ))
+        var changedStyle = style
+        changedStyle.prompt = "水彩绘画，柔和粉彩体系，纸张颗粒质感与高调漫射光。"
+        XCTAssertTrue(plan.requiresRebuild(
+            for: first,
+            styleCards: [changedStyle],
+            mode: .textToImage
+        ))
     }
 
 }

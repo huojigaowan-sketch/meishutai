@@ -466,10 +466,11 @@ final class ArtDepartmentV2Store {
             try validateExternalStyleInput()
             let cards = resolveStyleCards()
             guard !cards.isEmpty else { throw ArtDepartmentV2Error.noSelectedStyle }
-            if promptPlan.positivePrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                || promptPlan.mode != generationMode
-                || promptPlan.chosenStyleCardIDs != cards.map(\.id)
-            {
+            if promptPlan.requiresRebuild(
+                for: asset,
+                styleCards: cards,
+                mode: generationMode
+            ) {
                 promptPlan = try await ArtDepartmentV2Pipeline.makePromptPlan(
                     asset: asset,
                     styleCards: cards,

@@ -333,6 +333,8 @@ nonisolated enum StyleOnlyPromptPolicy {
             (#"(主体|人物|角色|场景|道具)\s*(是|为)"#, "直接指定了具体主体"),
             (#"(穿着|手持|拿着|站在|坐在|位于|俯瞰|驾驶|走进|打开)"#, "包含具体主体动作或位置"),
             (#"[一二两三四五六七八九十0-9]+(个|名|位|把|辆|本|间|座)[^，。；\n]{0,24}(男人|女人|女孩|男孩|人物|角色|火车|汽车|房间|厨房|卧室|街道|建筑|刀|剑|枪|瓶|手机|道具)"#, "包含可识别的具体资产描述"),
+            (#"(?i)\b(kitchen|bedroom|living room|classroom|hospital room|train|car|logo|passport|phone|sword|gun|bottle|table|chair|cabinet|stove|mother|father|daughter|son|girl|boy|woman|man|doctor|police officer|soldier)\b"#, "包含具体人物、地点或物件名词"),
+            (#"(厨房|卧室|客厅|教室|病房|楼道|火车|汽车|护照|手机|刀|剑|枪|瓶子|桌子|椅子|柜子|灶台|米缸|母亲|父亲|女儿|儿子|女孩|男孩|女人|男人|老人|医生|警察|士兵)"#, "包含具体人物、地点或物件名词"),
         ]
         let range = NSRange(text.startIndex..<text.endIndex, in: text)
         return directPatterns.compactMap { pattern, reason in
