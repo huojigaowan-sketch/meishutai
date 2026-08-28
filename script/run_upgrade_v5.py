@@ -98,5 +98,118 @@ def robust_patch_catalog() -> None:
     upgrade_v5.write(path, updated)
 
 
+def post_patch_generated_sources() -> None:
+    # Swift argument labels must follow the declaration order in Swift 6.
+    store_path = "美术台/Stores/ArtDepartmentV2Store.swift"
+    store = upgrade_v5.read(store_path)
+    wrong = '''                    notes: "输入会自动保存为实验分支。",
+                    isPromptLocked: false,
+                    lifecycleRawValue: StylePromptLifecycle.experiment.rawValue,
+                    sampleMedia: []
+'''
+    correct = '''                    notes: "输入会自动保存为实验分支。",
+                    lifecycleRawValue: StylePromptLifecycle.experiment.rawValue,
+                    sampleMedia: [],
+                    isPromptLocked: false
+'''
+    if wrong not in store:
+        raise RuntimeError("generated external style initializer anchor missing")
+    upgrade_v5.write(store_path, store.replace(wrong, correct, 1))
+
+    extension_path = "美术台/Stores/ArtDepartmentV2Store+StyleLibraryV4.swift"
+    extension = upgrade_v5.read(extension_path)
+    wrong_root = '''            notes: notes,
+            isPromptLocked: false,
+            parentID: parentID,
+            lifecycleRawValue: (publish ? StylePromptLifecycle.library : .experiment).rawValue,
+            branchLabel: parentID == nil ? "根风格" : "变化分支",
+            branchOrder: nextBranchOrder(parentID: parentID),
+            revisionNumber: 1,
+            sampleMedia: []
+'''
+    correct_root = '''            notes: notes,
+            parentID: parentID,
+            lifecycleRawValue: (publish ? StylePromptLifecycle.library : .experiment).rawValue,
+            branchLabel: parentID == nil ? "根风格" : "变化分支",
+            branchOrder: nextBranchOrder(parentID: parentID),
+            revisionNumber: 1,
+            sampleMedia: [],
+            isPromptLocked: false
+'''
+    wrong_draft = '''                notes: "输入即持久化；测试结果会自动成为加密样板。",
+                isPromptLocked: false,
+                lifecycleRawValue: StylePromptLifecycle.experiment.rawValue,
+                branchLabel: "外部实验",
+                revisionNumber: 1,
+                sampleMedia: []
+'''
+    correct_draft = '''                notes: "输入即持久化；测试结果会自动成为加密样板。",
+                lifecycleRawValue: StylePromptLifecycle.experiment.rawValue,
+                branchLabel: "外部实验",
+                revisionNumber: 1,
+                sampleMedia: [],
+                isPromptLocked: false
+'''
+    for label, old, new in (
+        ("root style initializer", wrong_root, correct_root),
+        ("external experiment initializer", wrong_draft, correct_draft),
+    ):
+        if old not in extension:
+            raise RuntimeError(f"{label} anchor missing")
+        extension = extension.replace(old, new, 1)
+
+    # Persist keystroke edits without writing the encrypted vault for every key.
+    extension = extension.replace(
+        '''            document.styleCards[index].updatedAt = .now
+            Task { await persist() }
+            return
+''',
+        '''            document.styleCards[index].updatedAt = .now
+            scheduleExternalDraftPersist()
+            return
+''',
+        1,
+    )
+    extension = extension.replace(
+        '''        Task { await persist() }
+    }
+
+    func restoreExternalStyleDraft()''',
+        '''        scheduleExternalDraftPersist()
+    }
+
+    func restoreExternalStyleDraft()''',
+        1,
+    )
+    helper_anchor = '''    private func nextBranchOrder(parentID: UUID?) -> Int {
+'''
+    helper = '''    private func scheduleExternalDraftPersist() {
+        externalDraftSaveTask?.cancel()
+        externalDraftSaveTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            await self?.persist()
+        }
+    }
+
+'''
+    if helper_anchor not in extension:
+        raise RuntimeError("external draft debounce insertion anchor missing")
+    extension = extension.replace(helper_anchor, helper + helper_anchor, 1)
+    upgrade_v5.write(extension_path, extension)
+
+    # Xcode 27 renamed the preferred GenerationOptions argument.
+    for path in (
+        "美术台/Services/AppleStructuredExtractionEngine.swift",
+        "美术台/Services/AssetReliabilityV4.swift",
+    ):
+        source = upgrade_v5.read(path).replace(
+            "GenerationOptions(sampling: .greedy)",
+            "GenerationOptions(samplingMode: .greedy)",
+        )
+        upgrade_v5.write(path, source)
+
+
 upgrade_v5.patch_catalog = robust_patch_catalog
 upgrade_v5.main()
+post_patch_generated_sources()
