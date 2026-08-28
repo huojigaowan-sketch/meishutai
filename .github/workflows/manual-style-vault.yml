@@ -33,6 +33,35 @@ jobs:
           echo 'c7708647e7333303ebb6985b5d6bd96128723d90a6a4af9ee2c993dd3ca83cc8  /tmp/apply_manual_style_vault.py.gz.b64' | shasum -a 256 -c -
           base64 --decode -i /tmp/apply_manual_style_vault.py.gz.b64 | gzip -dc > /tmp/apply_manual_style_vault.py
           echo 'a8ba25a7d29266ad05db8f66c5ba88f75c9ce64ddac40497269d087351045505  /tmp/apply_manual_style_vault.py' | shasum -a 256 -c -
+          python3 <<'PY'
+          from pathlib import Path
+          path = Path('/tmp/apply_manual_style_vault.py')
+          text = path.read_text()
+          old = '''UPSTREAM_FILES = [
+              ("references/chinese-aesthetic.json", ".scene", "东方审美"),
+              ("references/comic-storyboard.json", ".camera", "漫画分镜"),
+              ("references/game-asset.json", ".prop", "游戏资产"),
+              ("references/info-long-image.json", ".general", "信息长图"),
+              ("references/logo-design.json", ".general", "标志设计"),
+              ("references/profile-avatar.json", ".character", "人物头像"),
+              ("references/product-poster.json", ".prop", "产品海报"),
+              ("references/ui-interface.json", ".general", "界面设计"),
+          ]'''
+          new = '''UPSTREAM_FILES = [
+              ("references/app-web-design.json", ".general", "应用与网页设计"),
+              ("references/comic-storyboard.json", ".camera", "漫画分镜"),
+              ("references/ecommerce-main-image.json", ".prop", "电商主图"),
+              ("references/game-asset.json", ".prop", "游戏资产"),
+              ("references/infographic-edu-visual.json", ".general", "信息图与教育视觉"),
+              ("references/others.json", ".general", "综合视觉"),
+              ("references/poster-flyer.json", ".scene", "海报与传单"),
+              ("references/profile-avatar.json", ".character", "人物头像"),
+          ]'''
+          if text.count(old) != 1:
+              raise SystemExit('reviewed upstream-path anchor mismatch')
+          path.write_text(text.replace(old, new))
+          PY
+          echo '835754807d2fe844c47e6cb216fe56aabbfcee77cc185b3c46a47fbcf779ffec  /tmp/apply_manual_style_vault.py' | shasum -a 256 -c -
           python3 /tmp/apply_manual_style_vault.py
           rm /tmp/apply_manual_style_vault.py /tmp/apply_manual_style_vault.py.gz.b64
 
