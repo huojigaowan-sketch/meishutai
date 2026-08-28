@@ -1,0 +1,103 @@
+name: Upgrade V7 asset delivery and aspect ratios
+
+on:
+  push:
+    branches: [upgrade/asset-delivery-aspect-v7]
+    paths:
+      - '.github/workflows/upgrade-v7-delivery.yml'
+      - 'script/upgrade_v7.py'
+      - '美术台/**'
+      - '美术台Tests/**'
+      - '美术台.xcodeproj/**'
+      - 'README.md'
+      - 'docs/**'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: meishutai-v7-asset-delivery
+  cancel-in-progress: true
+
+jobs:
+  build-test-commit:
+    runs-on: xcode-27
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: upgrade/asset-delivery-aspect-v7
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          xcrun swift --version
+
+      - name: Validate migration script
+        run: python3 -m py_compile script/upgrade_v7.py
+
+      - name: Apply V7 migration
+        run: python3 script/upgrade_v7.py
+
+      - name: Validate generated source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          grep -q 'schemaVersion: 7' '美术台/Models/ArtDepartmentV2Models.swift'
+          grep -q 'nonisolated enum AssetDeliveryStandard' '美术台/Models/ArtDepartmentV2Models.swift'
+          grep -q '纯白无缝背景' '美术台/Models/ArtDepartmentV2Models.swift'
+          grep -q 'case landscape16x9 = "16:9"' '美术台/Models/ArtDepartmentV2Models.swift'
+          grep -q 'case portrait9x16 = "9:16"' '美术台/Models/ArtDepartmentV2Models.swift'
+          grep -q 'case portrait3x4 = "3:4"' '美术台/Models/ArtDepartmentV2Models.swift'
+          grep -q '"size": recipe.providerSize' '美术台/Services/ArtDepartmentV2Clients.swift'
+          grep -q 'ImageGenerationMode.selectableCases' '美术台/Views/ArtDepartmentV2Views.swift'
+          grep -q 'AssetDeliveryStandard.positiveInstruction' '美术台/Services/ArtDepartmentV2Pipeline.swift'
+          grep -q 'testCharacterDeliveryStandardRequiresWhiteFourViewSheet' '美术台Tests/ArtDepartmentV2Tests.swift'
+          grep -q 'testAspectRatioMapsToArkPixelSize' '美术台Tests/ArtDepartmentV2Tests.swift'
+          if grep -n 'ForEach(ImageGenerationMode.allCases)' '美术台/Views/ArtDepartmentV2Views.swift'; then
+            echo 'Generation studio must use asset-compatible modes.' >&2
+            exit 1
+          fi
+
+      - name: Build macOS 27 application without signing
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project '美术台.xcodeproj' \
+            -scheme '美术台' \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build | tee /tmp/meishutai-v7-build.log
+
+      - name: Run unit tests on hosted macOS compatibility host
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project '美术台.xcodeproj' \
+            -scheme '美术台' \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            MACOSX_DEPLOYMENT_TARGET=26.0 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            test | tee /tmp/meishutai-v7-tests.log
+
+      - name: Commit verified V7 source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm '.github/workflows/upgrade-v7-delivery.yml'
+          rm 'script/upgrade_v7.py'
+          rm -rf 'script/__pycache__'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'feat: enforce clean scene and four-view character delivery'
+          git push origin HEAD:upgrade/asset-delivery-aspect-v7
