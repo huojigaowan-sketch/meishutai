@@ -49,52 +49,12 @@ jobs:
         run: |
           python3 <<'PY'
           from pathlib import Path
-
           path = Path('美术台/Services/AppleStructuredExtractionEngine.swift')
           text = path.read_text()
-          text = text.replace(
-              'GenerationOptions(samplingMode: .greedy)',
-              'GenerationOptions(sampling: .greedy)'
-          )
-          old_signature = '''    func signature(for imageData: Data) async throws -> AppleStyleVisionSignature {
-        let request = GenerateImageFeaturePrintRequest()
-        let observations = try await request.perform(on: imageData)
-        guard let first = observations.first else {
-            throw ArtDepartmentV2Error.imageDataMissing
-        }
-        return AppleStyleVisionSignature(
-            featurePrintBase64: first.data.base64EncodedString(),
-            elementCount: first.elementCount
-        )
-    }
-
-    func distance(between lhs: Data, and rhs: Data) async throws -> Double {
-        let request = GenerateImageFeaturePrintRequest()
-        async let firstResult = request.perform(on: lhs)
-        async let secondResult = request.perform(on: rhs)
-        guard let first = try await firstResult.first,
-              let second = try await secondResult.first else {
-            throw ArtDepartmentV2Error.imageDataMissing
-        }
-        return try first.distance(to: second)
-    }'''
-          new_signature = '''    func signature(for imageData: Data) async throws -> AppleStyleVisionSignature {
-        let observation = try await GenerateImageFeaturePrintRequest().perform(on: imageData)
-        return AppleStyleVisionSignature(
-            featurePrintBase64: observation.data.base64EncodedString(),
-            elementCount: observation.elementCount
-        )
-    }
-
-    func distance(between lhs: Data, and rhs: Data) async throws -> Double {
-        async let lhsObservation = GenerateImageFeaturePrintRequest().perform(on: lhs)
-        async let rhsObservation = GenerateImageFeaturePrintRequest().perform(on: rhs)
-        let (first, second) = try await (lhsObservation, rhsObservation)
-        return try first.distance(to: second)
-    }'''
-          if old_signature not in text:
-              raise SystemExit('Vision API replacement anchor not found')
-          path.write_text(text.replace(old_signature, new_signature))
+          text = text.replace('GenerationOptions(samplingMode: .greedy)', 'GenerationOptions(sampling: .greedy)')
+          text = text.replace('        let observations = try await request.perform(on: imageData)\n        guard let first = observations.first else {\n            throw ArtDepartmentV2Error.imageDataMissing\n        }', '        let first = try await request.perform(on: imageData)')
+          text = text.replace('        let request = GenerateImageFeaturePrintRequest()\n        async let firstResult = request.perform(on: lhs)\n        async let secondResult = request.perform(on: rhs)\n        guard let first = try await firstResult.first,\n              let second = try await secondResult.first else {\n            throw ArtDepartmentV2Error.imageDataMissing\n        }\n        return try first.distance(to: second)', '        async let lhsObservation = GenerateImageFeaturePrintRequest().perform(on: lhs)\n        async let rhsObservation = GenerateImageFeaturePrintRequest().perform(on: rhs)\n        let (first, second) = try await (lhsObservation, rhsObservation)\n        return try first.distance(to: second)')
+          path.write_text(text)
           PY
 
       - name: Build application without signing
