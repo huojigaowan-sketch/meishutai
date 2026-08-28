@@ -122,5 +122,15 @@ def scoped_patch_view() -> None:
     upgrade_v7.write(path, prefix + separator + generation)
 
 
+original_patch_docs = upgrade_v7.patch_docs
+
+
+def normalized_patch_docs() -> None:
+    original_patch_docs()
+    for path in ["README.md", "docs/ASSET_DELIVERY_STANDARD_V7.md"]:
+        upgrade_v7.write(path, upgrade_v7.read(path).rstrip() + "\n")
+
+
 upgrade_v7.patch_view = scoped_patch_view
+upgrade_v7.patch_docs = normalized_patch_docs
 upgrade_v7.main()
