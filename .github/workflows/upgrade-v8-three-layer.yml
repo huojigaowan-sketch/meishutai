@@ -1,0 +1,102 @@
+name: Upgrade V8 three-layer basic information
+
+on:
+  push:
+    branches: [upgrade/three-layer-basic-info-v8]
+    paths:
+      - '.github/workflows/upgrade-v8-three-layer.yml'
+      - 'script/upgrade_v8.py'
+      - '美术台/**'
+      - '美术台Tests/**'
+      - '美术台.xcodeproj/**'
+      - 'README.md'
+      - 'docs/**'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: meishutai-v8-three-layer
+  cancel-in-progress: true
+
+jobs:
+  build-test-commit:
+    runs-on: xcode-27
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: upgrade/three-layer-basic-info-v8
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          xcrun swift --version
+
+      - name: Validate migration script
+        run: python3 -m py_compile script/upgrade_v8.py
+
+      - name: Apply V8 migration
+        run: python3 script/upgrade_v8.py
+
+      - name: Validate generated source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          grep -q 'schemaVersion: 8' '美术台/Models/ArtDepartmentV2Models.swift'
+          grep -q 'case templates = "格式模板"' '美术台/Models/ArtDepartmentV2Models.swift'
+          grep -q 'case assets = "基本资料库"' '美术台/Models/ArtDepartmentV2Models.swift'
+          grep -q 'nonisolated enum AssetBasicInformationAggregator' '美术台/Models/AssetBasicInformation.swift'
+          grep -q 'struct AssetBasicInformation' '美术台/Models/AssetBasicInformation.swift'
+          grep -q 'EpisodeIndexResolver' '美术台/Models/AssetBasicInformation.swift'
+          grep -q '第十二集' 'docs/THREE_LAYER_PRODUCTION_ARCHITECTURE_V8.md'
+          grep -q '【第一部分：基本资料】' '美术台/Services/ArtDepartmentV2Pipeline.swift'
+          grep -q '【第二部分：视觉风格】' '美术台/Services/ArtDepartmentV2Pipeline.swift'
+          grep -q '【第三部分：格式模板】' '美术台/Services/ArtDepartmentV2Pipeline.swift'
+          grep -q 'basicInformationJSONExportData' '美术台/Stores/ArtDepartmentV2Store.swift'
+          grep -q 'FormatTemplateLibraryWorkspace' '美术台/Views/FormatTemplateLibraryView.swift'
+          grep -q 'testEpisodeIndexResolverAnnotatesEpisodeMarkers' '美术台Tests/ArtDepartmentV2Tests.swift'
+          grep -q 'testThreeLayerPromptKeepsBasicStyleAndFormatSeparate' '美术台Tests/ArtDepartmentV2Tests.swift'
+
+      - name: Build macOS 27 application without signing
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project '美术台.xcodeproj' \
+            -scheme '美术台' \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build | tee /tmp/meishutai-v8-build.log
+
+      - name: Run unit tests on hosted macOS compatibility host
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project '美术台.xcodeproj' \
+            -scheme '美术台' \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            MACOSX_DEPLOYMENT_TARGET=26.0 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            test | tee /tmp/meishutai-v8-tests.log
+
+      - name: Commit verified V8 source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm '.github/workflows/upgrade-v8-three-layer.yml'
+          rm 'script/upgrade_v8.py'
+          rm -rf 'script/__pycache__'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'feat: add three-layer production data and episode summaries'
+          git push origin HEAD:upgrade/three-layer-basic-info-v8
