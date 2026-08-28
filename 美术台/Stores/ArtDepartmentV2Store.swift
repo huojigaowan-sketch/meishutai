@@ -189,7 +189,7 @@ final class ArtDepartmentV2Store {
                 client: client,
                 modelName: configurationName,
                 progress: { [weak self] value in
-                    await MainActor.run { self?.progress = value }
+                    self?.progress = value
                 }
             )
             mutateProject {
@@ -206,7 +206,7 @@ final class ArtDepartmentV2Store {
                 scenes: normalized.scenes,
                 client: client,
                 progress: { [weak self] value in
-                    await MainActor.run { self?.progress = value }
+                    self?.progress = value
                 }
             )
             mutateProject {
@@ -241,7 +241,7 @@ final class ArtDepartmentV2Store {
                 client: client,
                 modelName: configurationName,
                 progress: { [weak self] value in
-                    await MainActor.run { self?.progress = value }
+                    self?.progress = value
                 }
             )
             mutateProject {
@@ -278,7 +278,7 @@ final class ArtDepartmentV2Store {
                 scenes: scenes,
                 client: client,
                 progress: { [weak self] value in
-                    await MainActor.run { self?.progress = value }
+                    self?.progress = value
                 }
             )
             mutateProject {

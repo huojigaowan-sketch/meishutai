@@ -79,7 +79,7 @@ nonisolated enum ArtDepartmentV2Pipeline {
         sourceText: String,
         client: ArtChatCompletionClient?,
         modelName: String,
-        progress: @Sendable (PipelineProgress) async -> Void
+        progress: @MainActor @Sendable (PipelineProgress) -> Void
     ) async throws -> ScriptNormalizationResult {
         let units = SourceUnitBuilder.makeUnits(from: sourceText)
         guard !units.isEmpty else { throw ArtDepartmentV2Error.emptySource }
@@ -149,7 +149,7 @@ nonisolated enum ArtDepartmentV2Pipeline {
     static func extractAssets(
         scenes: [CanonicalScene],
         client: ArtChatCompletionClient?,
-        progress: @Sendable (PipelineProgress) async -> Void
+        progress: @MainActor @Sendable (PipelineProgress) -> Void
     ) async throws -> AutomatedAssetExtractionResult {
         guard !scenes.isEmpty else { throw ArtDepartmentV2Error.noCanonicalScenes }
         let startedAt = ContinuousClock.now

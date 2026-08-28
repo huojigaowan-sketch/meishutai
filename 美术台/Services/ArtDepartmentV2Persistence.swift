@@ -4,15 +4,17 @@ import Foundation
 actor ArtDepartmentPersistence {
     static let shared = ArtDepartmentPersistence()
 
-    private let fileManager = FileManager.default
+    private let fileManager: FileManager
     private let rootURL: URL
     private let documentURL: URL
     private let styleImagesURL: URL
     private let generatedImagesURL: URL
 
     init() {
-        let support = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? fileManager.homeDirectoryForCurrentUser.appending(path: "Library/Application Support", directoryHint: .isDirectory)
+        let manager = FileManager.default
+        fileManager = manager
+        let support = manager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? manager.homeDirectoryForCurrentUser.appending(path: "Library/Application Support", directoryHint: .isDirectory)
         rootURL = support.appending(path: "MeishutaiV2", directoryHint: .isDirectory)
         documentURL = rootURL.appending(path: "workspace-v2.json")
         styleImagesURL = rootURL.appending(path: "style-images", directoryHint: .isDirectory)
@@ -245,7 +247,7 @@ nonisolated enum FinalDraftFDXExporter {
     }
 }
 
-private final class FinalDraftXMLDelegate: NSObject, XMLParserDelegate {
+nonisolated private final class FinalDraftXMLDelegate: NSObject, XMLParserDelegate {
     var paragraphs: [(String, String)] = []
     private var currentType = "Action"
     private var currentText = ""
@@ -290,7 +292,7 @@ nonisolated enum FinalDraftImporter {
 }
 
 private extension JSONEncoder {
-    static var artDepartment: JSONEncoder {
+    nonisolated static var artDepartment: JSONEncoder {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
@@ -299,7 +301,7 @@ private extension JSONEncoder {
 }
 
 private extension JSONDecoder {
-    static var artDepartment: JSONDecoder {
+    nonisolated static var artDepartment: JSONDecoder {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return decoder

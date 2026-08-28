@@ -392,7 +392,7 @@ actor AppleStructuredExtractionEngine {
         let response = try await session.respond(
             to: prompt,
             generating: Output.self,
-            options: GenerationOptions(samplingMode: .greedy)
+            options: GenerationOptions(sampling: .greedy)
         )
         return response.content
     }
@@ -528,10 +528,7 @@ actor AppleVisionAnalyzer {
 
     func signature(for imageData: Data) async throws -> AppleStyleVisionSignature {
         let request = GenerateImageFeaturePrintRequest()
-        let observations = try await request.perform(on: imageData)
-        guard let first = observations.first else {
-            throw ArtDepartmentV2Error.imageDataMissing
-        }
+        let first = try await request.perform(on: imageData)
         return AppleStyleVisionSignature(
             featurePrintBase64: first.data.base64EncodedString(),
             elementCount: first.elementCount
@@ -539,13 +536,9 @@ actor AppleVisionAnalyzer {
     }
 
     func distance(between lhs: Data, and rhs: Data) async throws -> Double {
-        let request = GenerateImageFeaturePrintRequest()
-        async let firstResult = request.perform(on: lhs)
-        async let secondResult = request.perform(on: rhs)
-        guard let first = try await firstResult.first,
-              let second = try await secondResult.first else {
-            throw ArtDepartmentV2Error.imageDataMissing
-        }
+        async let lhsObservation = GenerateImageFeaturePrintRequest().perform(on: lhs)
+        async let rhsObservation = GenerateImageFeaturePrintRequest().perform(on: rhs)
+        let (first, second) = try await (lhsObservation, rhsObservation)
         return try first.distance(to: second)
     }
 

@@ -211,7 +211,7 @@ nonisolated struct ArkImageGenerationClient: Sendable {
     }
 }
 
-private struct ChatPayload: Encodable {
+nonisolated private struct ChatPayload: Encodable {
     struct Message: Encodable { var role: String; var content: String }
     struct ResponseFormat: Encodable { var type: String }
     var model: String
@@ -228,7 +228,7 @@ private struct ChatPayload: Encodable {
     }
 }
 
-private struct ChatResponse: Decodable {
+nonisolated private struct ChatResponse: Decodable {
     struct Choice: Decodable {
         struct Message: Decodable { var content: String? }
         var message: Message
@@ -236,7 +236,7 @@ private struct ChatResponse: Decodable {
     var choices: [Choice]
 }
 
-private struct ArkImageResponse: Decodable {
+nonisolated private struct ArkImageResponse: Decodable {
     struct Item: Decodable {
         var url: String?
         var b64JSON: String?

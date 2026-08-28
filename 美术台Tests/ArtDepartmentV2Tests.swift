@@ -1,5 +1,5 @@
 import XCTest
-@testable import 美术台
+@testable import AssetDesk
 
 final class ArtDepartmentV2Tests: XCTestCase {
     func testSourceUnitsAreStableAndNonEmpty() {
