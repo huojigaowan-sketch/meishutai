@@ -4,6 +4,32 @@ from __future__ import annotations
 import upgrade_v7
 
 
+original_patch_models = upgrade_v7.patch_models
+
+
+def fixed_patch_models() -> None:
+    original_patch_models()
+    path = "美术台/Models/ArtDepartmentV2Models.swift"
+    text = upgrade_v7.read(path)
+    text = upgrade_v7.replace_once(
+        text,
+        '''        switch normalized.uppercased() {
+        case "1K": oneKSize
+        case "4K": fourKSize
+        default: twoKSize
+        }
+''',
+        '''        switch normalized.uppercased() {
+        case "1K": return oneKSize
+        case "4K": return fourKSize
+        default: return twoKSize
+        }
+''',
+        "return ratio-specific provider size",
+    )
+    upgrade_v7.write(path, text)
+
+
 def scoped_patch_view() -> None:
     path = "美术台/Views/ArtDepartmentV2Views.swift"
     text = upgrade_v7.read(path)
@@ -131,6 +157,7 @@ def normalized_patch_docs() -> None:
         upgrade_v7.write(path, upgrade_v7.read(path).rstrip() + "\n")
 
 
+upgrade_v7.patch_models = fixed_patch_models
 upgrade_v7.patch_view = scoped_patch_view
 upgrade_v7.patch_docs = normalized_patch_docs
 upgrade_v7.main()
