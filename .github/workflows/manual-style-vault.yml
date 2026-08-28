@@ -37,7 +37,7 @@ jobs:
           from pathlib import Path
           path = Path('/tmp/apply_manual_style_vault.py')
           text = path.read_text()
-          old = '''UPSTREAM_FILES = [
+          old_files = '''UPSTREAM_FILES = [
               ("references/chinese-aesthetic.json", ".scene", "东方审美"),
               ("references/comic-storyboard.json", ".camera", "漫画分镜"),
               ("references/game-asset.json", ".prop", "游戏资产"),
@@ -47,7 +47,7 @@ jobs:
               ("references/product-poster.json", ".prop", "产品海报"),
               ("references/ui-interface.json", ".general", "界面设计"),
           ]'''
-          new = '''UPSTREAM_FILES = [
+          new_files = '''UPSTREAM_FILES = [
               ("references/app-web-design.json", ".general", "应用与网页设计"),
               ("references/comic-storyboard.json", ".camera", "漫画分镜"),
               ("references/ecommerce-main-image.json", ".prop", "电商主图"),
@@ -57,11 +57,43 @@ jobs:
               ("references/poster-flyer.json", ".scene", "海报与传单"),
               ("references/profile-avatar.json", ".character", "人物头像"),
           ]'''
-          if text.count(old) != 1:
-              raise SystemExit('reviewed upstream-path anchor mismatch')
-          path.write_text(text.replace(old, new))
+          old_extractor = '''def extract_prompt_objects(value: object) -> list[dict[str, object]]:
+              values: list[dict[str, object]] = []
+              if isinstance(value, list):
+                  for item in value:
+                      values.extend(extract_prompt_objects(item))
+              elif isinstance(value, dict):
+                  prompt = value.get("prompt")
+                  if isinstance(prompt, str) and prompt.strip():
+                      values.append(value)
+                  else:
+                      for item in value.values():
+                          values.extend(extract_prompt_objects(item))
+              return values
+          '''
+          new_extractor = '''def extract_prompt_objects(value: object) -> list[dict[str, object]]:
+              values: list[dict[str, object]] = []
+              if isinstance(value, list):
+                  for item in value:
+                      values.extend(extract_prompt_objects(item))
+              elif isinstance(value, dict):
+                  prompt = value.get("prompt")
+                  if not isinstance(prompt, str) or not prompt.strip():
+                      prompt = value.get("content")
+                  if isinstance(prompt, str) and prompt.strip():
+                      normalized = dict(value)
+                      normalized["prompt"] = prompt
+                      values.append(normalized)
+                  else:
+                      for item in value.values():
+                          values.extend(extract_prompt_objects(item))
+              return values
+          '''
+          if text.count(old_files) != 1 or text.count(old_extractor) != 1:
+              raise SystemExit('reviewed upstream parser anchor mismatch')
+          path.write_text(text.replace(old_files, new_files).replace(old_extractor, new_extractor))
           PY
-          echo '835754807d2fe844c47e6cb216fe56aabbfcee77cc185b3c46a47fbcf779ffec  /tmp/apply_manual_style_vault.py' | shasum -a 256 -c -
+          echo 'c302013b0ddae02b4c5235297731d56a918c899867e1ce54f587280f450239a5  /tmp/apply_manual_style_vault.py' | shasum -a 256 -c -
           python3 /tmp/apply_manual_style_vault.py
           rm /tmp/apply_manual_style_vault.py /tmp/apply_manual_style_vault.py.gz.b64
 
