@@ -55,6 +55,7 @@ nonisolated struct ArkImageConfiguration: Hashable, Sendable {
 nonisolated enum ArtSecretAccount: String {
     case llm = "llm-api-key"
     case ark = "ark-api-key"
+    case styleVault = "style-library-vault-key"
 }
 
 nonisolated enum ArtDepartmentKeychain {
@@ -86,7 +87,9 @@ nonisolated enum ArtDepartmentKeychain {
         guard !clean.isEmpty else { return }
         var entry = lookup
         entry[kSecValueData as String] = Data(clean.utf8)
-        entry[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        entry[kSecAttrAccessible as String] = account == .styleVault
+            ? kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+            : kSecAttrAccessibleAfterFirstUnlock
         let status = SecItemAdd(entry as CFDictionary, nil)
         guard status == errSecSuccess else { throw ArtDepartmentNetworkError.keychain(status) }
     }

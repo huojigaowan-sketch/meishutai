@@ -321,6 +321,14 @@ nonisolated enum StylePromptCategory: String, CaseIterable, Codable, Identifiabl
     var id: String { rawValue }
 }
 
+nonisolated struct StylePromptProvenance: Codable, Hashable, Sendable {
+    var repository: String
+    var path: String
+    var revision: String
+    var license: String
+    var originalID: String?
+}
+
 nonisolated struct StylePromptCard: Codable, Hashable, Identifiable, Sendable {
     var id: UUID
     var title: String
@@ -335,6 +343,7 @@ nonisolated struct StylePromptCard: Codable, Hashable, Identifiable, Sendable {
     var updatedAt: Date
     var visionFingerprintBase64: String?
     var visionAestheticScore: Double?
+    var provenance: StylePromptProvenance?
 
     init(
         id: UUID = UUID(),
@@ -349,7 +358,8 @@ nonisolated struct StylePromptCard: Codable, Hashable, Identifiable, Sendable {
         createdAt: Date = .now,
         updatedAt: Date = .now,
         visionFingerprintBase64: String? = nil,
-        visionAestheticScore: Double? = nil
+        visionAestheticScore: Double? = nil,
+        provenance: StylePromptProvenance? = nil
     ) {
         self.id = id
         self.title = title
@@ -364,6 +374,7 @@ nonisolated struct StylePromptCard: Codable, Hashable, Identifiable, Sendable {
         self.updatedAt = updatedAt
         self.visionFingerprintBase64 = visionFingerprintBase64
         self.visionAestheticScore = visionAestheticScore
+        self.provenance = provenance
     }
 }
 
@@ -520,7 +531,7 @@ nonisolated struct ArtDepartmentWorkspaceDocument: Codable, Hashable, Sendable {
     var updatedAt: Date
 
     static let empty = ArtDepartmentWorkspaceDocument(
-        schemaVersion: 3,
+        schemaVersion: 4,
         projects: [],
         styleCards: BuiltInStylePromptCatalog.cards,
         updatedAt: .now
@@ -553,7 +564,7 @@ nonisolated enum ArtDepartmentV2Error: LocalizedError {
         case .incompleteCoverage(let ids): "剧本标准化未覆盖全部原文段落：\(ids.joined(separator: ", "))"
         case .noCanonicalScenes: "请先把原始剧本标准化为 Final Draft/Fountain 场景。"
         case .noSelectedAsset: "当前没有自动通过的场景、人物或道具。"
-        case .noSelectedStyle: "当前没有可用的风格提示词卡。"
+        case .noSelectedStyle: "必须由用户从风格图书馆明确选择至少一张卡片，或输入本轮外部风格提示词。"
         case .noUsableAssets: "自动核验没有找到具有逐字证据的可用资产。"
         case .imageDataMissing: "参考图或生成结果的图像数据不存在。"
         case .unsupportedFile: "当前文件格式不受支持。请使用 TXT、Markdown、Fountain、FDX、PDF 或图片。"

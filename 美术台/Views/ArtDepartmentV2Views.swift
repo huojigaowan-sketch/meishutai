@@ -649,7 +649,7 @@ private struct StyleVaultWorkspace: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("风格提示词库")
                         .font(.system(.largeTitle, design: .rounded, weight: .bold))
-                    Text("参考图与用户精确提示词成对保存；Apple Vision 自动查重，提示词默认锁定。")
+                    Text("用户决定并选择风格；自建卡片与参考图采用 Keychain 密钥和 AES-GCM 加密，Apple Vision 仅在本机查重。")
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -667,7 +667,7 @@ private struct StyleVaultWorkspace: View {
                     ForEach(store.styleCards) { card in
                         StyleCardView(
                             card: card,
-                            imageURL: store.imageURL(for: card.referenceImagePath),
+                            image: store.styleImage(for: card.referenceImagePath),
                             selected: store.selectedStyleCardIDs.contains(card.id)
                         ) {
                             store.toggleStyleSelection(card.id)
@@ -684,7 +684,7 @@ private struct StyleVaultWorkspace: View {
 
 private struct StyleCardView: View {
     let card: StylePromptCard
-    let imageURL: URL?
+    let image: NSImage?
     let selected: Bool
     let onSelect: () -> Void
     let onDelete: () -> Void
@@ -693,7 +693,7 @@ private struct StyleCardView: View {
         VStack(alignment: .leading, spacing: 12) {
             ZStack {
                 RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(0.04))
-                if let imageURL, let image = NSImage(contentsOf: imageURL) {
+                if let image {
                     Image(nsImage: image).resizable().scaledToFill()
                 } else {
                     Image(systemName: card.category == .camera ? "camera.viewfinder" : "photo")
@@ -764,7 +764,7 @@ private struct StyleCardEditorView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("添加风格提示词卡").font(.title2.weight(.bold))
-            Text("提示词由用户提供并锁定；参考图会由 Apple Vision 建立本地相似度签名。")
+            Text("提示词由用户提供并锁定；参考图会加密保存，并由 Apple Vision 建立本地相似度签名。")
                 .font(.callout)
                 .foregroundStyle(.secondary)
             TextField("标题", text: $title)
@@ -852,7 +852,7 @@ private struct GenerationStudioWorkspace: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("生图工坊")
                     .font(.system(.largeTitle, design: .rounded, weight: .bold))
-                Text("自动核验资产 + 用户锁定风格卡 → Apple Schema 提示词 → Ark 文生图 / 图生图")
+                Text("自动核验资产 + 用户明确选择的图书馆/外部风格 → Apple Schema 提示词 → Ark")
                     .foregroundStyle(.secondary)
             }
             Spacer()
@@ -862,7 +862,7 @@ private struct GenerationStudioWorkspace: View {
                 Task { await store.generateImages() }
             }
             .buttonStyle(.borderedProminent)
-            .disabled(store.isWorking || store.selectedAsset == nil)
+            .disabled(store.isWorking || store.selectedAsset == nil || !store.hasExplicitStyleSelection)
         }
         .padding(22)
     }
@@ -896,14 +896,65 @@ private struct GenerationStudioWorkspace: View {
                 .padding(7)
                 .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 9))
 
-            Text("风格卡").font(.headline)
+            Text("风格来源（必须由用户决定）").font(.headline)
+            Menu {
+                ForEach(store.styleCards) { card in
+                    Button {
+                        store.toggleStyleSelection(card.id)
+                    } label: {
+                        Label(
+                            card.title,
+                            systemImage: store.selectedStyleCardIDs.contains(card.id)
+                                ? "checkmark.circle.fill"
+                                : "circle"
+                        )
+                    }
+                }
+            } label: {
+                Label("从风格图书馆选择", systemImage: "books.vertical")
+            }
+            .menuStyle(.borderlessButton)
+
             if store.selectedStyleCards.isEmpty {
-                Text("未手动选择时，系统会按资产类型和生成模式自动匹配最多三张风格卡。")
+                Text("尚未从图书馆选择。系统不会代替用户决定风格。")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.orange)
             } else {
-                Text(store.selectedStyleCards.map(\.title).joined(separator: "、"))
+                Text("已选：\(store.selectedStyleCards.map(\.title).joined(separator: "、"))")
                     .font(.callout)
+            }
+
+            Divider()
+            Text("本轮外部风格").font(.headline)
+            TextField("名称（可选）", text: $store.externalStyleTitle)
+            Picker("分类", selection: $store.externalStyleCategory) {
+                ForEach(StylePromptCategory.allCases) { category in
+                    Text(category.rawValue).tag(category)
+                }
+            }
+            .pickerStyle(.menu)
+            TextEditor(text: $store.externalStylePrompt)
+                .frame(minHeight: 82)
+                .padding(7)
+                .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 9))
+                .overlay(alignment: .topLeading) {
+                    if store.externalStylePrompt.isEmpty {
+                        Text("粘贴从别处获得或正在测试的风格提示词")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                            .padding(12)
+                            .allowsHitTesting(false)
+                    }
+                }
+            Button("测试后存入风格图书馆", systemImage: "lock.doc") {
+                store.saveExternalStyleToLibrary()
+            }
+            .disabled(store.externalStylePrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+            if !store.hasExplicitStyleSelection {
+                Label("请明确选择图书馆卡片，或输入本轮外部风格。", systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
             }
         }
         .padding(18)
@@ -918,7 +969,7 @@ private struct GenerationStudioWorkspace: View {
                     Button("重新规划", systemImage: "arrow.clockwise") {
                         Task { await store.planGenerationPrompt() }
                     }
-                    .disabled(store.isWorking || store.selectedAsset == nil)
+                    .disabled(store.isWorking || store.selectedAsset == nil || !store.hasExplicitStyleSelection)
                 }
                 PromptField(title: "标题", text: $store.promptPlan.title, minHeight: 38)
                 PromptField(title: "主体", text: $store.promptPlan.subject)
@@ -960,7 +1011,7 @@ private struct GenerationStudioWorkspace: View {
                     ContentUnavailableView(
                         "还没有生成图",
                         systemImage: "photo.stack",
-                        description: Text("选择资产后可直接生图；系统会自动规划提示词。")
+                        description: Text("选择资产并由用户明确指定风格后，系统生成结构化提示词计划。")
                     )
                 }
             }

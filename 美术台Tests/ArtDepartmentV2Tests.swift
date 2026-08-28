@@ -1,3 +1,4 @@
+import CryptoKit
 import XCTest
 @testable import AssetDesk
 
@@ -120,8 +121,50 @@ final class ArtDepartmentV2Tests: XCTestCase {
         XCTAssertEqual(asset.reviewDecision.title, "隔离诊断")
     }
 
-    func testWorkspaceSchemaIsAutomaticV3() {
-        XCTAssertEqual(ArtDepartmentWorkspaceDocument.empty.schemaVersion, 3)
+    func testImportedMITStyleCatalogIsLargeAndTraceable() {
+        let cards = ImportedStylePromptCatalog.cards
+        XCTAssertEqual(cards.count, 56)
+        XCTAssertEqual(ImportedStylePromptCatalog.revision, "7c065c2b429bc75334239965768849cb00c8987d")
+        XCTAssertEqual(Set(cards.map(\.id)).count, cards.count)
+        XCTAssertTrue(cards.allSatisfy { !$0.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
+        XCTAssertTrue(cards.allSatisfy { card in
+            card.provenance?.repository == "YouMind-OpenLab/ai-image-prompts-skill"
+                && card.provenance?.revision == "7c065c2b429bc75334239965768849cb00c8987d"
+                && card.provenance?.license == "MIT"
+                && !(card.provenance?.originalID ?? "").isEmpty
+        })
+    }
+
+    func testStyleSelectionRequiresExplicitHumanInput() {
+        XCTAssertFalse(StyleSelectionPolicy.hasExplicitSelection(
+            selectedStyleCardIDs: [],
+            externalPrompt: ""
+        ))
+        XCTAssertTrue(StyleSelectionPolicy.hasExplicitSelection(
+            selectedStyleCardIDs: [UUID()],
+            externalPrompt: ""
+        ))
+        XCTAssertTrue(StyleSelectionPolicy.hasExplicitSelection(
+            selectedStyleCardIDs: [],
+            externalPrompt: "用户粘贴的外部风格"
+        ))
+    }
+
+    func testStyleVaultRoundTripAndTamperDetection() throws {
+        let key = SymmetricKey(size: .bits256)
+        let plaintext = Data("重要风格提示词与参考图索引".utf8)
+        let encrypted = try StyleLibraryVault.seal(plaintext, using: key)
+        XCTAssertNotEqual(encrypted, plaintext)
+        XCTAssertEqual(try StyleLibraryVault.open(encrypted, using: key), plaintext)
+
+        var tampered = encrypted
+        let last = tampered.index(before: tampered.endIndex)
+        tampered[last] ^= 0x01
+        XCTAssertThrowsError(try StyleLibraryVault.open(tampered, using: key))
+    }
+
+    func testWorkspaceSchemaIsAutomaticV4() {
+        XCTAssertEqual(ArtDepartmentWorkspaceDocument.empty.schemaVersion, 4)
         XCTAssertEqual(ArtWorkspaceSection.assets.rawValue, "自动资产库")
         XCTAssertEqual(ScriptPipelineStage.completed.title, "资产已就绪")
     }

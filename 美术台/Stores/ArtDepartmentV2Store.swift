@@ -11,6 +11,10 @@ final class ArtDepartmentV2Store {
     var selectedAssetID: UUID?
     var selectedAssetKind: ProductionAssetKind = .scene
     var selectedStyleCardIDs: [UUID] = []
+    var externalStyleTitle = ""
+    var externalStylePrompt = ""
+    var externalStyleCategory: StylePromptCategory = .general
+    var styleImageDataByPath: [String: Data] = [:]
     var generationMode: ImageGenerationMode = .textToImage
     var generationDirection = ""
     var promptPlan: ArtPromptPlan = .empty
@@ -60,6 +64,20 @@ final class ArtDepartmentV2Store {
         document.styleCards.filter { selectedStyleCardIDs.contains($0.id) }
     }
 
+    var hasExplicitStyleSelection: Bool {
+        StyleSelectionPolicy.hasExplicitSelection(
+            selectedStyleCardIDs: selectedStyleCardIDs,
+            externalPrompt: externalStylePrompt
+        )
+    }
+
+    func styleImage(for relativePath: String?) -> NSImage? {
+        guard let relativePath,
+              let data = styleImageDataByPath[relativePath]
+        else { return nil }
+        return NSImage(data: data)
+    }
+
     var activeEngineStatus: AppleEngineStatusSnapshot? {
         currentProject?.engineStatus
     }
@@ -75,6 +93,7 @@ final class ArtDepartmentV2Store {
                 document.projects.contains(where: { $0.id == id }) ? id : nil
             } ?? document.projects.first?.id
             synchronizeSelections()
+            await reloadStyleImageCache()
             await refreshEngineStatus()
             await persist()
         } catch {
@@ -327,12 +346,15 @@ final class ArtDepartmentV2Store {
                     from: imageURL,
                     cardID: card.id
                 )
+                if let path = card.referenceImagePath {
+                    styleImageDataByPath[path] = imageData
+                }
                 let signature = try? await AppleVisionAnalyzer.shared.signature(for: imageData)
                 card.visionFingerprintBase64 = signature?.featurePrintBase64
             }
             document.styleCards.insert(card, at: 0)
             selectedStyleCardIDs = [card.id]
-            noticeMessage = "风格卡已保存；参考图由 Apple Vision 建立相似度签名。"
+            noticeMessage = "风格卡已保存到 AES-GCM 加密图书馆；参考图由 Apple Vision 建立本地相似度签名。"
             await persist()
         } catch {
             errorMessage = error.localizedDescription
@@ -350,9 +372,15 @@ final class ArtDepartmentV2Store {
     func deleteStyleCard(_ id: UUID) {
         guard let card = document.styleCards.first(where: { $0.id == id }),
               !card.isBuiltIn else { return }
+        if let path = card.referenceImagePath {
+            styleImageDataByPath.removeValue(forKey: path)
+        }
         document.styleCards.removeAll { $0.id == id }
         selectedStyleCardIDs.removeAll { $0 == id }
-        Task { await persist() }
+        Task {
+            try? await persistence.deleteStyleImage(at: card.referenceImagePath)
+            await persist()
+        }
     }
 
     func toggleStyleSelection(_ id: UUID) {
@@ -363,6 +391,29 @@ final class ArtDepartmentV2Store {
         }
     }
 
+    func saveExternalStyleToLibrary() {
+        let cleanPrompt = externalStylePrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanPrompt.isEmpty else {
+            errorMessage = ArtDepartmentV2Error.noSelectedStyle.localizedDescription
+            return
+        }
+        let cleanTitle = externalStyleTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let card = StylePromptCard(
+            title: cleanTitle.isEmpty ? "外部风格 \(document.styleCards.count + 1)" : cleanTitle,
+            prompt: cleanPrompt,
+            category: externalStyleCategory,
+            tags: ["用户确认", "外部导入"],
+            notes: "由用户在生图工坊测试并明确存入风格图书馆。",
+            isPromptLocked: true
+        )
+        document.styleCards.insert(card, at: 0)
+        selectedStyleCardIDs.append(card.id)
+        externalStyleTitle = ""
+        externalStylePrompt = ""
+        noticeMessage = "外部风格已由用户确认并存入加密风格图书馆。"
+        Task { await persist() }
+    }
+
     func importGenerationReference(_ url: URL) async {
         let accessing = url.startAccessingSecurityScopedResource()
         defer { if accessing { url.stopAccessingSecurityScopedResource() } }
@@ -371,7 +422,7 @@ final class ArtDepartmentV2Store {
                 from: url,
                 cardID: UUID()
             )
-            noticeMessage = "已加入本轮参考图。"
+            noticeMessage = "已加密保存本轮参考图。"
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -383,7 +434,7 @@ final class ArtDepartmentV2Store {
             return
         }
         await runWork {
-            let cards = resolveStyleCards(for: asset)
+            let cards = resolveStyleCards()
             guard !cards.isEmpty else { throw ArtDepartmentV2Error.noSelectedStyle }
             let client = remoteClientIfConfigured()
             promptPlan = try await ArtDepartmentV2Pipeline.makePromptPlan(
@@ -393,8 +444,7 @@ final class ArtDepartmentV2Store {
                 direction: generationDirection,
                 client: client
             )
-            selectedStyleCardIDs = cards.map(\.id)
-            noticeMessage = "Apple GenerationSchema 已生成完整生图计划，可直接生图。"
+            noticeMessage = "Apple GenerationSchema 已按用户明确选择的风格生成生图计划。"
         }
     }
 
@@ -405,7 +455,7 @@ final class ArtDepartmentV2Store {
             return
         }
         await runWork {
-            let cards = resolveStyleCards(for: asset)
+            let cards = resolveStyleCards()
             guard !cards.isEmpty else { throw ArtDepartmentV2Error.noSelectedStyle }
             if promptPlan.positivePrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 || promptPlan.mode != generationMode
@@ -418,8 +468,7 @@ final class ArtDepartmentV2Store {
                     direction: generationDirection,
                     client: remoteClientIfConfigured()
                 )
-                selectedStyleCardIDs = cards.map(\.id)
-            }
+                }
 
             let configuration = try ArkImageConfiguration.current()
             var references: [Data] = []
@@ -437,7 +486,7 @@ final class ArtDepartmentV2Store {
             }
             progress = .init(
                 title: "Ark 生图",
-                detail: "基于自动核验资产与锁定风格生成",
+                detail: "基于自动核验资产与用户明确选择的风格生成",
                 current: 0,
                 total: max(1, recipe.maxImages)
             )
@@ -517,6 +566,17 @@ final class ArtDepartmentV2Store {
 
     // MARK: - Private
 
+    private func reloadStyleImageCache() async {
+        var cache: [String: Data] = [:]
+        for card in document.styleCards {
+            guard let path = card.referenceImagePath,
+                  let data = try? await persistence.data(for: path)
+            else { continue }
+            cache[path] = data
+        }
+        styleImageDataByPath = cache
+    }
+
     private func refreshEngineStatus() async {
         let status = await AppleStructuredExtractionEngine.shared.status(
             remoteAvailable: remoteClientIfConfigured() != nil
@@ -532,15 +592,22 @@ final class ArtDepartmentV2Store {
         return ArtChatCompletionClient(configuration: configuration)
     }
 
-    private func resolveStyleCards(
-        for asset: ProductionAsset
-    ) -> [StylePromptCard] {
-        if !selectedStyleCards.isEmpty { return selectedStyleCards }
-        return ArtDepartmentV2Pipeline.recommendedStyleCards(
-            for: asset,
-            cards: document.styleCards,
-            mode: generationMode
-        )
+    private func resolveStyleCards() -> [StylePromptCard] {
+        var cards = selectedStyleCards
+        let prompt = externalStylePrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !prompt.isEmpty {
+            let title = externalStyleTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+            cards.append(StylePromptCard(
+                id: StyleSelectionPolicy.temporaryCardID,
+                title: title.isEmpty ? "本轮外部风格" : title,
+                prompt: prompt,
+                category: externalStyleCategory,
+                tags: ["本轮临时", "用户明确选择"],
+                notes: "未自动存入图书馆；用户可在测试后手动保存。",
+                isPromptLocked: true
+            ))
+        }
+        return cards
     }
 
     private func nearestDuplicateStyle(
@@ -591,7 +658,7 @@ final class ArtDepartmentV2Store {
     }
 
     private func migrateToAutomaticPipeline() {
-        document.schemaVersion = max(3, document.schemaVersion)
+        document.schemaVersion = max(4, document.schemaVersion)
         for projectIndex in document.projects.indices {
             if document.projects[projectIndex].pipelineStage == .reviewing {
                 document.projects[projectIndex].pipelineStage = .adjudicating

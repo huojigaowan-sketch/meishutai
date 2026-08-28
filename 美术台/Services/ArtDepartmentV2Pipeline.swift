@@ -1,7 +1,7 @@
 import Foundation
 
 nonisolated enum BuiltInStylePromptCatalog {
-    static let cards: [StylePromptCard] = [
+    static let projectCards: [StylePromptCard] = [
         StylePromptCard(
             id: UUID(uuidString: "10000000-0000-0000-0000-000000000001")!,
             title: "材质 / 构图 / 元素分析",
@@ -59,6 +59,20 @@ nonisolated enum BuiltInStylePromptCatalog {
             isBuiltIn: true
         ),
     ]
+
+    static let cards = projectCards + ImportedStylePromptCatalog.cards
+}
+
+nonisolated enum StyleSelectionPolicy {
+    static let temporaryCardID = UUID(uuidString: "F0000000-0000-0000-0000-000000000001")!
+
+    static func hasExplicitSelection(
+        selectedStyleCardIDs: [UUID],
+        externalPrompt: String
+    ) -> Bool {
+        !selectedStyleCardIDs.isEmpty
+            || !externalPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 }
 
 nonisolated struct ScriptNormalizationResult: Sendable {
@@ -294,34 +308,6 @@ nonisolated enum ArtDepartmentV2Pipeline {
             chosenStyleCardIDs: styleCards.map(\.id),
             rationale: "Apple 确定性编译器按自动核验资产与用户锁定风格卡拼装。"
         )
-    }
-
-    static func recommendedStyleCards(
-        for asset: ProductionAsset,
-        cards: [StylePromptCard],
-        mode: ImageGenerationMode
-    ) -> [StylePromptCard] {
-        let preferredCategories: [StylePromptCategory]
-        switch mode {
-        case .aoWhiteModel: preferredCategories = [.whiteModel, .general]
-        case .materialRepaint: preferredCategories = [.repaint, .general]
-        case .reverseShot, .cameraRebuild: preferredCategories = [.camera, .scene, .general]
-        case .cleanup: preferredCategories = [.cleanup, .scene, .general]
-        case .characterLineup: preferredCategories = [.costume, .character, .general]
-        case .referenceImage, .textToImage:
-            switch asset.kind {
-            case .scene: preferredCategories = [.scene, .general, .camera]
-            case .character: preferredCategories = [.character, .costume, .general]
-            case .prop: preferredCategories = [.prop, .general]
-            }
-        }
-        let ranked = cards.sorted { lhs, rhs in
-            let l = preferredCategories.firstIndex(of: lhs.category) ?? preferredCategories.count + 1
-            let r = preferredCategories.firstIndex(of: rhs.category) ?? preferredCategories.count + 1
-            if l != r { return l < r }
-            return lhs.updatedAt > rhs.updatedAt
-        }
-        return Array(ranked.prefix(3))
     }
 
     // MARK: - Scene automation

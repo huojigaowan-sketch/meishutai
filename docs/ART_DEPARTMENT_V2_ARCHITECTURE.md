@@ -15,7 +15,7 @@
   → 逐场自动提取
   → 多引擎自动核验
   → ProductionAsset
-  → 风格卡自动匹配
+  → 风格卡用户明确选择
   → AppleSchemaPromptPlan
   → Ark Images API
 ```

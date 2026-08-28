@@ -1,12 +1,50 @@
 import CryptoKit
 import Foundation
 
+nonisolated enum StyleLibraryVaultError: LocalizedError {
+    case malformedContainer
+    case missingCombinedRepresentation
+    case invalidKeyMaterial
+
+    var errorDescription: String? {
+        switch self {
+        case .malformedContainer: "风格图书馆加密容器无效或已损坏。"
+        case .missingCombinedRepresentation: "无法创建完整的 AES-GCM 加密容器。"
+        case .invalidKeyMaterial: "Keychain 中的风格图书馆密钥无效。"
+        }
+    }
+}
+
+nonisolated enum StyleLibraryVault {
+    private static let magic = Data([0x4D, 0x53, 0x56, 0x34]) // MSV4
+
+    static func seal(_ plaintext: Data, using key: SymmetricKey) throws -> Data {
+        let box = try AES.GCM.seal(plaintext, using: key)
+        guard let combined = box.combined else {
+            throw StyleLibraryVaultError.missingCombinedRepresentation
+        }
+        var container = magic
+        container.append(combined)
+        return container
+    }
+
+    static func open(_ container: Data, using key: SymmetricKey) throws -> Data {
+        guard container.count > magic.count,
+              container.prefix(magic.count) == magic
+        else { throw StyleLibraryVaultError.malformedContainer }
+        let box = try AES.GCM.SealedBox(combined: container.dropFirst(magic.count))
+        return try AES.GCM.open(box, using: key)
+    }
+}
+
 actor ArtDepartmentPersistence {
     static let shared = ArtDepartmentPersistence()
 
     private let fileManager: FileManager
     private let rootURL: URL
-    private let documentURL: URL
+    private let legacyDocumentURL: URL
+    private let vaultURL: URL
+    private let backupsURL: URL
     private let styleImagesURL: URL
     private let generatedImagesURL: URL
 
@@ -16,74 +54,207 @@ actor ArtDepartmentPersistence {
         let support = manager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? manager.homeDirectoryForCurrentUser.appending(path: "Library/Application Support", directoryHint: .isDirectory)
         rootURL = support.appending(path: "MeishutaiV2", directoryHint: .isDirectory)
-        documentURL = rootURL.appending(path: "workspace-v2.json")
+        legacyDocumentURL = rootURL.appending(path: "workspace-v2.json")
+        vaultURL = rootURL.appending(path: "workspace-v4.vault")
+        backupsURL = rootURL.appending(path: "vault-backups", directoryHint: .isDirectory)
         styleImagesURL = rootURL.appending(path: "style-images", directoryHint: .isDirectory)
         generatedImagesURL = rootURL.appending(path: "generated-images", directoryHint: .isDirectory)
     }
 
     func load() throws -> ArtDepartmentWorkspaceDocument {
         try prepareDirectories()
-        guard fileManager.fileExists(atPath: documentURL.path) else {
-            return .empty
+        let key = try vaultKey()
+        var document: ArtDepartmentWorkspaceDocument
+        var shouldPersistMigration = false
+
+        if fileManager.fileExists(atPath: vaultURL.path) {
+            let encrypted = try Data(contentsOf: vaultURL)
+            let plaintext = try StyleLibraryVault.open(encrypted, using: key)
+            document = try JSONDecoder.artDepartment.decode(ArtDepartmentWorkspaceDocument.self, from: plaintext)
+        } else if fileManager.fileExists(atPath: legacyDocumentURL.path) {
+            document = try JSONDecoder.artDepartment.decode(
+                ArtDepartmentWorkspaceDocument.self,
+                from: Data(contentsOf: legacyDocumentURL)
+            )
+            shouldPersistMigration = true
+        } else {
+            document = .empty
         }
-        let data = try Data(contentsOf: documentURL)
-        var document = try JSONDecoder.artDepartment.decode(ArtDepartmentWorkspaceDocument.self, from: data)
+
         let knownBuiltIns = Set(document.styleCards.filter(\.isBuiltIn).map(\.id))
-        document.styleCards.append(contentsOf: BuiltInStylePromptCatalog.cards.filter { !knownBuiltIns.contains($0.id) })
+        let missingBuiltIns = BuiltInStylePromptCatalog.cards.filter { !knownBuiltIns.contains($0.id) }
+        if !missingBuiltIns.isEmpty {
+            document.styleCards.append(contentsOf: missingBuiltIns)
+            shouldPersistMigration = true
+        }
+
+        if try migratePlaintextStyleImages(in: &document, using: key) {
+            shouldPersistMigration = true
+        }
+        document.schemaVersion = max(4, document.schemaVersion)
+
+        if shouldPersistMigration {
+            try save(document)
+        }
         return document
     }
 
     func save(_ document: ArtDepartmentWorkspaceDocument) throws {
         try prepareDirectories()
         var document = document
+        document.schemaVersion = max(4, document.schemaVersion)
         document.updatedAt = .now
-        let data = try JSONEncoder.artDepartment.encode(document)
-        let temporary = documentURL.appendingPathExtension("tmp")
-        try data.write(to: temporary, options: .atomic)
-        if fileManager.fileExists(atPath: documentURL.path) {
-            _ = try fileManager.replaceItemAt(documentURL, withItemAt: temporary)
-        } else {
-            try fileManager.moveItem(at: temporary, to: documentURL)
+        let plaintext = try JSONEncoder.artDepartment.encode(document)
+        let encrypted = try StyleLibraryVault.seal(plaintext, using: vaultKey())
+        try backupCurrentVault()
+        try writeProtected(encrypted, to: vaultURL)
+        if fileManager.fileExists(atPath: legacyDocumentURL.path) {
+            try fileManager.removeItem(at: legacyDocumentURL)
         }
     }
 
     func importStyleImage(from sourceURL: URL, cardID: UUID) throws -> String {
         try prepareDirectories()
-        let ext = sourceURL.pathExtension.isEmpty ? "png" : sourceURL.pathExtension.lowercased()
-        let relative = "style-images/\(cardID.uuidString).\(ext)"
+        let relative = "style-images/\(cardID.uuidString).vault"
         let destination = rootURL.appending(path: relative)
-        if fileManager.fileExists(atPath: destination.path) {
-            try fileManager.removeItem(at: destination)
-        }
-        try fileManager.copyItem(at: sourceURL, to: destination)
+        let plaintext = try Data(contentsOf: sourceURL)
+        let encrypted = try StyleLibraryVault.seal(plaintext, using: vaultKey())
+        try writeProtected(encrypted, to: destination)
         return relative
     }
 
-    func saveGeneratedImage(_ data: Data, projectID: UUID, imageID: UUID, fileExtension: String = "png") throws -> String {
+    func saveGeneratedImage(
+        _ data: Data,
+        projectID: UUID,
+        imageID: UUID,
+        fileExtension: String = "png"
+    ) throws -> String {
         try prepareDirectories()
         let projectFolder = generatedImagesURL.appending(path: projectID.uuidString, directoryHint: .isDirectory)
-        try fileManager.createDirectory(at: projectFolder, withIntermediateDirectories: true)
+        try createProtectedDirectory(projectFolder)
         let ext = fileExtension.trimmingCharacters(in: CharacterSet.alphanumerics.inverted).lowercased()
         let safeExtension = ext.isEmpty ? "png" : ext
         let relative = "generated-images/\(projectID.uuidString)/\(imageID.uuidString).\(safeExtension)"
-        try data.write(to: rootURL.appending(path: relative), options: .atomic)
+        let destination = rootURL.appending(path: relative)
+        try data.write(to: destination, options: .atomic)
+        try protectFile(destination)
         return relative
     }
 
     func absoluteURL(for relativePath: String?) -> URL? {
         guard let relativePath, !relativePath.isEmpty else { return nil }
-        return rootURL.appending(path: relativePath)
+        let root = rootURL.standardizedFileURL.path + "/"
+        let candidate = rootURL.appending(path: relativePath).standardizedFileURL
+        guard candidate.path.hasPrefix(root) else { return nil }
+        return candidate
+    }
+
+    func deleteStyleImage(at relativePath: String?) throws {
+        guard let relativePath,
+              relativePath.hasPrefix("style-images/"),
+              let url = absoluteURL(for: relativePath),
+              fileManager.fileExists(atPath: url.path)
+        else { return }
+        try fileManager.removeItem(at: url)
     }
 
     func data(for relativePath: String?) throws -> Data? {
-        guard let url = absoluteURL(for: relativePath), fileManager.fileExists(atPath: url.path) else { return nil }
-        return try Data(contentsOf: url)
+        guard let relativePath,
+              let url = absoluteURL(for: relativePath),
+              fileManager.fileExists(atPath: url.path)
+        else { return nil }
+        let data = try Data(contentsOf: url)
+        if relativePath.hasPrefix("style-images/") && url.pathExtension == "vault" {
+            return try StyleLibraryVault.open(data, using: vaultKey())
+        }
+        return data
+    }
+
+    private func migratePlaintextStyleImages(
+        in document: inout ArtDepartmentWorkspaceDocument,
+        using key: SymmetricKey
+    ) throws -> Bool {
+        var changed = false
+        for index in document.styleCards.indices {
+            guard let relative = document.styleCards[index].referenceImagePath,
+                  !relative.isEmpty,
+                  !relative.hasSuffix(".vault")
+            else { continue }
+            let source = rootURL.appending(path: relative)
+            guard fileManager.fileExists(atPath: source.path) else { continue }
+            let destinationRelative = "style-images/\(document.styleCards[index].id.uuidString).vault"
+            let destination = rootURL.appending(path: destinationRelative)
+            let encrypted = try StyleLibraryVault.seal(Data(contentsOf: source), using: key)
+            try writeProtected(encrypted, to: destination)
+            try fileManager.removeItem(at: source)
+            document.styleCards[index].referenceImagePath = destinationRelative
+            document.styleCards[index].updatedAt = .now
+            changed = true
+        }
+        return changed
+    }
+
+    private func vaultKey() throws -> SymmetricKey {
+        let stored = ArtDepartmentKeychain.read(account: .styleVault)
+        if !stored.isEmpty {
+            guard let data = Data(base64Encoded: stored), data.count == 32 else {
+                throw StyleLibraryVaultError.invalidKeyMaterial
+            }
+            return SymmetricKey(data: data)
+        }
+        let key = SymmetricKey(size: .bits256)
+        let data = key.withUnsafeBytes { Data($0) }
+        try ArtDepartmentKeychain.save(data.base64EncodedString(), account: .styleVault)
+        return key
+    }
+
+    private func backupCurrentVault() throws {
+        guard fileManager.fileExists(atPath: vaultURL.path) else { return }
+        let stamp = Int(Date().timeIntervalSince1970 * 1_000)
+        let backup = backupsURL.appending(path: "workspace-\(stamp).vault")
+        try fileManager.copyItem(at: vaultURL, to: backup)
+        try protectFile(backup)
+        let backups = try fileManager.contentsOfDirectory(
+            at: backupsURL,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        )
+        .filter { $0.pathExtension == "vault" }
+        .sorted { $0.lastPathComponent < $1.lastPathComponent }
+        for obsolete in backups.dropLast(20) {
+            try fileManager.removeItem(at: obsolete)
+        }
     }
 
     private func prepareDirectories() throws {
-        try fileManager.createDirectory(at: rootURL, withIntermediateDirectories: true)
-        try fileManager.createDirectory(at: styleImagesURL, withIntermediateDirectories: true)
-        try fileManager.createDirectory(at: generatedImagesURL, withIntermediateDirectories: true)
+        try createProtectedDirectory(rootURL)
+        try createProtectedDirectory(backupsURL)
+        try createProtectedDirectory(styleImagesURL)
+        try createProtectedDirectory(generatedImagesURL)
+    }
+
+    private func createProtectedDirectory(_ url: URL) throws {
+        try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
+        try fileManager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: url.path)
+    }
+
+    private func writeProtected(_ data: Data, to destination: URL) throws {
+        let temporary = destination.appendingPathExtension("tmp")
+        if fileManager.fileExists(atPath: temporary.path) {
+            try fileManager.removeItem(at: temporary)
+        }
+        try data.write(to: temporary, options: .atomic)
+        try protectFile(temporary)
+        if fileManager.fileExists(atPath: destination.path) {
+            _ = try fileManager.replaceItemAt(destination, withItemAt: temporary)
+        } else {
+            try fileManager.moveItem(at: temporary, to: destination)
+        }
+        try protectFile(destination)
+    }
+
+    private func protectFile(_ url: URL) throws {
+        try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }
 }
 
