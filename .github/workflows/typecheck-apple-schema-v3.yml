@@ -26,6 +26,24 @@ jobs:
           xcodebuild -version
           xcrun swift --version
 
+      - name: Remove obsolete V1 implementation from the synchronized target
+        shell: bash
+        run: |
+          set -euo pipefail
+          find '美术台/Models' -type f ! -name 'ArtDepartmentV2Models.swift' -delete
+          find '美术台/Services' -type f \
+            ! -name 'AppleStructuredExtractionEngine.swift' \
+            ! -name 'ArtDepartmentV2Clients.swift' \
+            ! -name 'ArtDepartmentV2Persistence.swift' \
+            ! -name 'ArtDepartmentV2Pipeline.swift' \
+            -delete
+          find '美术台/Stores' -type f ! -name 'ArtDepartmentV2Store.swift' -delete
+          find '美术台/Views' -type f \
+            ! -name 'ArtDepartmentV2Views.swift' \
+            ! -name 'ArtDepartmentV2SettingsView.swift' \
+            -delete
+          find '美术台Tests' -type f ! -name 'ArtDepartmentV2Tests.swift' -delete
+
       - name: Build application without signing
         shell: bash
         run: |
@@ -54,12 +72,18 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             test | tee /tmp/meishutai-tests.log
 
-      - name: Remove temporary typecheck workflow
+      - name: Commit production-only source tree
         shell: bash
         run: |
           rm .github/workflows/typecheck-apple-schema-v3.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- .github/workflows/typecheck-apple-schema-v3.yml
-          git commit -m 'chore: complete macOS Apple schema typecheck'
+          git add -- \
+            '美术台/Models' \
+            '美术台/Services' \
+            '美术台/Stores' \
+            '美术台/Views' \
+            '美术台Tests' \
+            '.github/workflows/typecheck-apple-schema-v3.yml'
+          git commit -m 'refactor: remove obsolete manual-review implementation'
           git push origin HEAD:feature/art-department-v2
