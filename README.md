@@ -1,4 +1,4 @@
-# 美术台 5.0 · Apple 自动美术资产流水线
+# 美术台 6.0 · Apple 自动美术资产流水线
 
 美术台是一套面向影视美术部门的 macOS 原生工作台。3.0 不再把低置信度结果交给人逐项确认，而是把准确性做成自动化系统属性：任意剧本先转为标准 Final Draft/Fountain，再由 Apple Foundation Models、content tagging、Natural Language、Vision、确定性解析器和可选远程模型共同完成场景、人物、道具的提取、核验、隔离和生产入库。
 
@@ -121,3 +121,12 @@ Apple Foundation Models 的 `Generable` 类型会转换为 JSON schema。应用�
 ## macOS 27
 
 工程部署目标为 macOS 27，使用 Xcode 27 / Swift 6、Foundation Models 的最新系统模型、`LanguageModelSession.usage`、Vision Swift API、Natural Language、Observation、CryptoKit 与 Keychain。
+
+
+## V6 主体—风格严格分离
+
+- 风格图书馆的公开提示词只描述媒介、渲染、色彩、光线、构图、镜头、线条、质感和氛围，不保存具体人物、场景、道具、服装或动作。
+- 56 张固定开源卡在运行时从上游原始提示转换为主体中立的视觉风格描述；原始文本仅作为私有来源数据保留。
+- 风格样板只用于预览和理解视觉处理，不会作为 Ark 内容参考图发送，避免样板中的人物、场景或物件污染生成主体。
+- 场景、人物和道具以逐字证据提取结构化设计事实。人物姓名、场景标题或道具名称本身不足以进入可生图资产库。
+- 最终提示词由“剧本资产设计层（唯一主体来源）+ 用户选择的纯视觉风格层 + 生成操作层”确定性拼装。

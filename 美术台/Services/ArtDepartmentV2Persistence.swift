@@ -94,11 +94,14 @@ actor ArtDepartmentPersistence {
         if mergePinnedBuiltIns(into: &document) {
             shouldPersistMigration = true
         }
+        if sanitizeUserStyleCards(in: &document) {
+            shouldPersistMigration = true
+        }
 
         if try migratePlaintextStyleImages(in: &document, using: key) {
             shouldPersistMigration = true
         }
-        document.schemaVersion = max(5, document.schemaVersion)
+        document.schemaVersion = max(6, document.schemaVersion)
 
         if shouldPersistMigration {
             try save(document)
@@ -109,7 +112,7 @@ actor ArtDepartmentPersistence {
     func save(_ document: ArtDepartmentWorkspaceDocument) throws {
         try prepareDirectories()
         var document = document
-        document.schemaVersion = max(5, document.schemaVersion)
+        document.schemaVersion = max(6, document.schemaVersion)
         document.updatedAt = .now
         let plaintext = try JSONEncoder.artDepartment.encode(document)
         let encrypted = try StyleLibraryVault.seal(plaintext, using: vaultKey())
@@ -259,6 +262,27 @@ actor ArtDepartmentPersistence {
                 }
             } else {
                 document.styleCards.append(pinnedCard)
+                changed = true
+            }
+        }
+        return changed
+    }
+
+    private func sanitizeUserStyleCards(
+        in document: inout ArtDepartmentWorkspaceDocument
+    ) -> Bool {
+        var changed = false
+        for index in document.styleCards.indices where !document.styleCards[index].isBuiltIn {
+            let prompt = document.styleCards[index].prompt
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !prompt.isEmpty else { continue }
+            var migrated = StyleOnlyPromptPolicy.migratedLegacyCard(
+                document.styleCards[index],
+                index: index
+            )
+            if migrated != document.styleCards[index] {
+                migrated.updatedAt = .now
+                document.styleCards[index] = migrated
                 changed = true
             }
         }

@@ -74,10 +74,15 @@ nonisolated enum StylePromptResolver {
         for cardID: UUID,
         in cards: [StylePromptCard]
     ) -> String {
-        lineage(for: cardID, in: cards)
-            .map { $0.prompt.trimmingCharacters(in: .whitespacesAndNewlines) }
+        let fragments = lineage(for: cardID, in: cards)
+            .map {
+                StyleOnlyPromptPolicy.safeStyleFragment(
+                    $0.prompt,
+                    category: $0.category
+                )
+            }
             .filter { !$0.isEmpty }
-            .joined(separator: "\n\n【分支变化】\n")
+        return StyleOnlyPromptPolicy.subjectNeutralEnvelope(fragments)
     }
 
     static func resolvedSamples(

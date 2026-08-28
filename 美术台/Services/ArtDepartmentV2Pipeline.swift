@@ -250,38 +250,63 @@ nonisolated enum ArtDepartmentV2Pipeline {
         direction: String,
         client: ArtChatCompletionClient?
     ) async throws -> ArtPromptPlan {
-        let lockedFacts = [asset.canonicalName, asset.visualDescription, asset.continuityState]
-            + asset.sourceEvidence.prefix(8).map(\.quote)
-        do {
-            let draft = try await AppleStructuredExtractionEngine.shared.makePromptPlan(
-                asset: asset,
-                styleCards: styleCards,
-                mode: mode,
-                direction: direction,
-                remote: client
-            )
-            return ArtPromptPlan(
-                title: draft.title,
-                mode: mode,
-                subject: draft.subject,
-                materials: draft.materials,
-                composition: draft.composition,
-                elements: draft.elements,
-                lighting: draft.lighting,
-                positivePrompt: draft.positivePrompt,
-                negativePrompt: draft.negativePrompt,
-                lockedFacts: uniqueText(lockedFacts + draft.lockedFacts),
-                chosenStyleCardIDs: styleCards.map(\.id),
-                rationale: draft.rationale
-            )
-        } catch {
-            return fallbackPromptPlan(
-                asset: asset,
-                styleCards: styleCards,
-                mode: mode,
-                direction: direction
+        _ = client
+        guard AssetDesignReadiness.isReady(asset) else {
+            throw ArtDepartmentV2Error.invalidModelResponse(
+                AssetDesignReadiness.missingReason(asset)
             )
         }
+        let assetDesign = asset.designPrompt
+        let styleTreatment = StyleOnlyPromptPolicy.subjectNeutralEnvelope(
+            styleCards.map {
+                StyleOnlyPromptPolicy.safeStyleFragment(
+                    $0.prompt,
+                    category: $0.category
+                )
+            }
+        )
+        guard !styleTreatment.isEmpty else {
+            throw ArtDepartmentV2Error.noSelectedStyle
+        }
+        let operation = [modeInstruction(mode), direction]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+        let positive = """
+        【资产设计层——唯一主体来源】
+        \(assetDesign)
+
+        【视觉风格层——只改变表现方式】
+        \(styleTreatment)
+
+        【生成任务】
+        \(operation)
+        """
+        let negative = "不要从风格提示词或风格样板复制任何具体人物、场景、道具、服装、动作、数量、时代或空间关系；不要补全剧本未明确的年龄、性别、体貌、材质、颜色和损坏状态；不要改变锁定身份与连续性；避免文字、水印、畸形肢体和重复主体。"
+        let facts = asset.verifiedDesignFacts.map(\.value)
+        return ArtPromptPlan(
+            title: "\(asset.canonicalName) · \(mode.rawValue)",
+            mode: mode,
+            subject: assetDesign,
+            materials: asset.materialNotes,
+            composition: asset.compositionNotes,
+            elements: asset.elementNotes,
+            lighting: asset.verifiedDesignFacts
+                .filter { $0.kind == .lighting }
+                .map(\.value)
+                .joined(separator: "；"),
+            positivePrompt: positive,
+            negativePrompt: negative,
+            lockedFacts: uniqueText(
+                [asset.canonicalName, asset.continuityState]
+                    + facts
+                    + asset.sourceEvidence.prefix(12).map(\.quote)
+            ),
+            chosenStyleCardIDs: styleCards.map(\.id),
+            rationale: "确定性双层编译：剧本资产设计提供全部主体事实，用户选择的纯风格只提供视觉处理。",
+            assetDesignPrompt: assetDesign,
+            styleTreatmentPrompt: styleTreatment
+        )
     }
 
     static func fallbackPromptPlan(
@@ -290,34 +315,40 @@ nonisolated enum ArtDepartmentV2Pipeline {
         mode: ImageGenerationMode,
         direction: String
     ) -> ArtPromptPlan {
-        let styles = styleCards.map(\.prompt).joined(separator: "；")
+        let assetDesign = asset.designPrompt
+        let styleTreatment = StyleOnlyPromptPolicy.subjectNeutralEnvelope(
+            styleCards.map {
+                StyleOnlyPromptPolicy.safeStyleFragment(
+                    $0.prompt,
+                    category: $0.category
+                )
+            }
+        )
         let positive = [
-            asset.visualDescription,
-            "材质：\(asset.materialNotes)",
-            "构图：\(asset.compositionNotes)",
-            "元素：\(asset.elementNotes)",
-            styles,
-            modeInstruction(mode),
-            direction,
+            "【资产设计层——唯一主体来源】\n\(assetDesign)",
+            "【视觉风格层——只改变表现方式】\n\(styleTreatment)",
+            "【生成任务】\n\(modeInstruction(mode))\n\(direction)",
         ]
-        .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-        .joined(separator: "。")
+        .joined(separator: "\n\n")
         return ArtPromptPlan(
             title: "\(asset.canonicalName) · \(mode.rawValue)",
             mode: mode,
-            subject: asset.visualDescription,
+            subject: assetDesign,
             materials: asset.materialNotes,
             composition: asset.compositionNotes,
             elements: asset.elementNotes,
-            lighting: "保持资产与参考图中已有光源关系",
+            lighting: "",
             positivePrompt: positive,
-            negativePrompt: "不要改变锁定结构、空间拓扑、服装结构、人物身份和时代信息；不要增加无证据物体；避免文字、水印、畸形肢体和重复主体。",
+            negativePrompt: "风格不得提供主体内容；不得臆造剧本未明确事实；避免文字、水印、畸形肢体和重复主体。",
             lockedFacts: uniqueText(
                 [asset.canonicalName, asset.continuityState]
-                    + asset.sourceEvidence.prefix(8).map(\.quote)
+                    + asset.verifiedDesignFacts.map(\.value)
+                    + asset.sourceEvidence.prefix(12).map(\.quote)
             ),
             chosenStyleCardIDs: styleCards.map(\.id),
-            rationale: "Apple 确定性编译器按自动核验资产与用户锁定风格卡拼装。"
+            rationale: "本地确定性双层编译器。",
+            assetDesignPrompt: assetDesign,
+            styleTreatmentPrompt: styleTreatment
         )
     }
 
@@ -384,6 +415,11 @@ nonisolated enum ArtDepartmentV2Pipeline {
             let candidate = exemplar.1
             let kind = assetKind(candidate.kind)
             let evidence = candidate.evidence.trimmingCharacters(in: .whitespacesAndNewlines)
+            let designFacts = groundedDesignFacts(
+                candidate.designFacts,
+                assetKind: kind,
+                scene: scene
+            )
             let engineNames = Array(Set(values.map(\.0))).sorted()
             let evidenceScore = min(1, 0.55 + Double(min(evidence.count, 40)) / 90)
             let fields = [
@@ -444,6 +480,7 @@ nonisolated enum ArtDepartmentV2Pipeline {
                 materialNotes: candidate.materialNotes,
                 compositionNotes: candidate.compositionNotes,
                 elementNotes: candidate.elementNotes,
+                designFacts: designFacts,
                 sourceEvidence: [
                     EvidenceQuote(
                         sceneID: scene.id,
@@ -462,12 +499,60 @@ nonisolated enum ArtDepartmentV2Pipeline {
         }
     }
 
+    private static func groundedDesignFacts(
+        _ candidates: [AppleSchemaDesignFact],
+        assetKind: ProductionAssetKind,
+        scene: CanonicalScene
+    ) -> [AssetDesignFact] {
+        let source = scene.fountainText
+        let mapped = candidates.compactMap { candidate -> AssetDesignFact? in
+            let value = candidate.value.trimmingCharacters(in: .whitespacesAndNewlines)
+            let evidence = candidate.evidence.trimmingCharacters(in: .whitespacesAndNewlines)
+            let kind = designFactKind(candidate.kind)
+            guard !value.isEmpty,
+                  !evidence.isEmpty,
+                  source.contains(evidence),
+                  designFact(kind, appliesTo: assetKind)
+            else { return nil }
+            return AssetDesignFact(
+                kind: kind,
+                value: value,
+                evidence: evidence,
+                sceneID: scene.id,
+                sceneHeading: scene.heading,
+                confidence: Double(candidate.confidencePercent) / 100
+            )
+        }
+        return AssetDesignPromptCompiler.verifiedFacts(mapped)
+    }
+
+    private static func designFact(
+        _ kind: AssetDesignFactKind,
+        appliesTo assetKind: ProductionAssetKind
+    ) -> Bool {
+        let common: Set<AssetDesignFactKind> = [
+            .material, .colorPattern, .condition, .eraCulture, .lighting,
+            .distinctiveFeature, .relationship,
+        ]
+        if common.contains(kind) { return true }
+        switch assetKind {
+        case .scene:
+            return [.functionalPurpose, .environmentType, .spatialLayout,
+                    .architecture, .timeWeather].contains(kind)
+        case .character:
+            return [.ageRange, .genderPresentation, .identityRole, .physique,
+                    .faceHair, .costume, .accessory, .characterState].contains(kind)
+        case .prop:
+            return [.objectType, .objectFunction, .quantityScale].contains(kind)
+        }
+    }
+
     private static func deterministicSceneAsset(_ scene: CanonicalScene) -> ProductionAsset {
-        let actionText = scene.paragraphs
+        let actionParagraphs = scene.paragraphs
             .filter { $0.element == .action }
             .prefix(8)
-            .map(\.text)
-            .joined(separator: "；")
+        let actionText = actionParagraphs.map(\.text).joined(separator: "；")
+        let designFacts = deterministicSceneFacts(scene)
         let report = AssetVerificationReport(
             engines: ["Final Draft Scene Heading", "Apple deterministic parser"],
             consensusCount: 2,
@@ -475,15 +560,16 @@ nonisolated enum ArtDepartmentV2Pipeline {
             schemaCompleteness: 1,
             linguisticSupport: 1,
             deterministicSupport: true,
-            reason: "标准 Scene Heading 是物理场景的确定性身份。"
+            reason: "标准 Scene Heading 确定场景身份；动作段落提供逐字可见设计事实。"
         )
         return ProductionAsset(
             kind: .scene,
             canonicalName: scene.heading,
-            summary: "由标准 Final Draft 场景标题确定",
+            summary: "由标准场景标题与动作段落确定的物理空间",
             visualDescription: actionText,
-            compositionNotes: "以正式场景标题和动作段落为依据",
+            compositionNotes: "只采用剧本明确的空间与动作关系",
             elementNotes: actionText,
+            designFacts: designFacts,
             sourceEvidence: [
                 EvidenceQuote(
                     sceneID: scene.id,
@@ -500,6 +586,57 @@ nonisolated enum ArtDepartmentV2Pipeline {
         )
     }
 
+    private static func deterministicSceneFacts(
+        _ scene: CanonicalScene
+    ) -> [AssetDesignFact] {
+        var facts: [AssetDesignFact] = []
+        let heading = scene.heading
+        let upper = heading.uppercased()
+        if upper.hasPrefix("INT.") || heading.hasPrefix("内.") {
+            facts.append(AssetDesignFact(
+                kind: .environmentType,
+                value: "室内场景",
+                evidence: heading,
+                sceneID: scene.id,
+                sceneHeading: heading
+            ))
+        } else if upper.hasPrefix("EXT.") || heading.hasPrefix("外.") {
+            facts.append(AssetDesignFact(
+                kind: .environmentType,
+                value: "室外场景",
+                evidence: heading,
+                sceneID: scene.id,
+                sceneHeading: heading
+            ))
+        }
+        let components = heading.components(separatedBy: " - ")
+        if components.count > 1,
+           let time = components.last?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !time.isEmpty
+        {
+            facts.append(AssetDesignFact(
+                kind: .timeWeather,
+                value: time,
+                evidence: heading,
+                sceneID: scene.id,
+                sceneHeading: heading
+            ))
+        }
+        for paragraph in scene.paragraphs.filter({ $0.element == .action }).prefix(4) {
+            let text = paragraph.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { continue }
+            facts.append(AssetDesignFact(
+                kind: .distinctiveFeature,
+                value: text,
+                evidence: text,
+                sceneID: scene.id,
+                sceneHeading: heading,
+                confidence: 0.9
+            ))
+        }
+        return AssetDesignPromptCompiler.verifiedFacts(facts)
+    }
+
     private static func deterministicCharacterAssets(
         _ scene: CanonicalScene
     ) -> [ProductionAsset] {
@@ -510,20 +647,28 @@ nonisolated enum ArtDepartmentV2Pipeline {
                     .trimmingCharacters(in: .whitespacesAndNewlines)
             }
         return uniqueText(names).filter { !$0.isEmpty }.map { name in
+            let designFacts = deterministicCharacterFacts(name: name, scene: scene)
+            let relevantActions = designFacts
+                .filter { $0.kind == .characterState || $0.kind == .distinctiveFeature }
+                .map(\.value)
+                .joined(separator: "；")
             let report = AssetVerificationReport(
                 engines: ["Final Draft Character element", "Apple deterministic parser"],
                 consensusCount: 2,
                 exactEvidenceScore: 1,
-                schemaCompleteness: 0.75,
+                schemaCompleteness: designFacts.isEmpty ? 0.2 : 0.7,
                 linguisticSupport: 1,
                 deterministicSupport: true,
-                reason: "人物名以 Character 元素实际说话，身份确定。"
+                reason: "人物名以 Character 元素实际说话；只有动作段落逐字支持的外观与状态进入设计事实。"
             )
             return ProductionAsset(
                 kind: .character,
                 canonicalName: name,
-                summary: "人物提示符在当前场景中明确出现",
-                visualDescription: "外观由动作段落、服装状态和连续场景自动补全",
+                summary: "当前场景中明确出现的说话人物",
+                visualDescription: relevantActions.isEmpty
+                    ? "剧本仅明确人物身份，尚无可验证外观特征"
+                    : relevantActions,
+                designFacts: designFacts,
                 sourceEvidence: [
                     EvidenceQuote(
                         sceneID: scene.id,
@@ -539,6 +684,68 @@ nonisolated enum ArtDepartmentV2Pipeline {
                 verificationReport: report
             )
         }
+    }
+
+    private static func deterministicCharacterFacts(
+        name: String,
+        scene: CanonicalScene
+    ) -> [AssetDesignFact] {
+        var facts = [AssetDesignFact(
+            kind: .identityRole,
+            value: name,
+            evidence: name,
+            sceneID: scene.id,
+            sceneHeading: scene.heading
+        )]
+        let femaleMarkers = ["母亲", "女儿", "妻子", "姐姐", "妹妹", "女孩", "女人", "女士", "奶奶", "外婆"]
+        let maleMarkers = ["父亲", "儿子", "丈夫", "哥哥", "弟弟", "男孩", "男人", "先生", "爷爷", "外公"]
+        if femaleMarkers.contains(where: name.contains) {
+            facts.append(AssetDesignFact(
+                kind: .genderPresentation,
+                value: "女性",
+                evidence: name,
+                sceneID: scene.id,
+                sceneHeading: scene.heading
+            ))
+        } else if maleMarkers.contains(where: name.contains) {
+            facts.append(AssetDesignFact(
+                kind: .genderPresentation,
+                value: "男性",
+                evidence: name,
+                sceneID: scene.id,
+                sceneHeading: scene.heading
+            ))
+        }
+        let ageMarkers: [(String, String)] = [
+            ("婴儿", "婴儿"), ("儿童", "儿童"), ("小孩", "儿童"),
+            ("男孩", "儿童或少年"), ("女孩", "儿童或少年"),
+            ("少年", "少年"), ("少女", "少女"),
+            ("青年", "青年"), ("老人", "老年"), ("老者", "老年"),
+            ("爷爷", "老年"), ("奶奶", "老年"),
+        ]
+        if let age = ageMarkers.first(where: { name.contains($0.0) })?.1 {
+            facts.append(AssetDesignFact(
+                kind: .ageRange,
+                value: age,
+                evidence: name,
+                sceneID: scene.id,
+                sceneHeading: scene.heading
+            ))
+        }
+        for paragraph in scene.paragraphs
+            .filter({ $0.element == .action && $0.text.contains(name) })
+            .prefix(4)
+        {
+            facts.append(AssetDesignFact(
+                kind: .characterState,
+                value: paragraph.text,
+                evidence: paragraph.text,
+                sceneID: scene.id,
+                sceneHeading: scene.heading,
+                confidence: 0.9
+            ))
+        }
+        return AssetDesignPromptCompiler.verifiedFacts(facts)
     }
 
     private static func contentTagPropAssets(
@@ -569,6 +776,16 @@ nonisolated enum ArtDepartmentV2Pipeline {
                 canonicalName: clean,
                 summary: "Apple contentTagging 检出的物理对象",
                 visualDescription: clean,
+                designFacts: [
+                    AssetDesignFact(
+                        kind: .objectType,
+                        value: clean,
+                        evidence: quote,
+                        sceneID: scene.id,
+                        sceneHeading: scene.heading,
+                        confidence: 0.82
+                    )
+                ],
                 sourceEvidence: [
                     EvidenceQuote(
                         sceneID: scene.id,
@@ -643,6 +860,9 @@ nonisolated enum ArtDepartmentV2Pipeline {
         merged.materialNotes = mergeText(lhs.materialNotes, rhs.materialNotes)
         merged.compositionNotes = mergeText(lhs.compositionNotes, rhs.compositionNotes)
         merged.elementNotes = mergeText(lhs.elementNotes, rhs.elementNotes)
+        merged.designFacts = AssetDesignPromptCompiler.verifiedFacts(
+            (lhs.designFacts ?? []) + (rhs.designFacts ?? [])
+        )
         merged.warnings = uniqueText(lhs.warnings + rhs.warnings)
         merged.independentVerdictCount = (lhs.independentVerdictCount ?? 0)
             + (rhs.independentVerdictCount ?? 0)
@@ -805,6 +1025,36 @@ nonisolated enum ArtDepartmentV2Pipeline {
         case .dialogue: .dialogue
         case .transition: .transition
         case .general: .note
+        }
+    }
+
+    private static func designFactKind(
+        _ value: AppleSchemaDesignFactKind
+    ) -> AssetDesignFactKind {
+        switch value {
+        case .functionalPurpose: .functionalPurpose
+        case .environmentType: .environmentType
+        case .spatialLayout: .spatialLayout
+        case .architecture: .architecture
+        case .timeWeather: .timeWeather
+        case .ageRange: .ageRange
+        case .genderPresentation: .genderPresentation
+        case .identityRole: .identityRole
+        case .physique: .physique
+        case .faceHair: .faceHair
+        case .costume: .costume
+        case .accessory: .accessory
+        case .characterState: .characterState
+        case .objectType: .objectType
+        case .objectFunction: .objectFunction
+        case .quantityScale: .quantityScale
+        case .material: .material
+        case .colorPattern: .colorPattern
+        case .condition: .condition
+        case .eraCulture: .eraCulture
+        case .lighting: .lighting
+        case .distinctiveFeature: .distinctiveFeature
+        case .relationship: .relationship
         }
     }
 

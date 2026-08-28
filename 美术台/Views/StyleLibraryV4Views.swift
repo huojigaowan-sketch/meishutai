@@ -18,7 +18,7 @@ struct StyleLibraryWorkspaceV4: View {
             detail
         }
         .navigationTitle("风格图书馆")
-        .searchable(text: $store.styleSearchText, prompt: "搜索标题、提示词、标签")
+        .searchable(text: $store.styleSearchText, prompt: "搜索纯视觉风格、标签")
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button("新建根风格", systemImage: "plus") {
@@ -70,7 +70,7 @@ struct StyleLibraryWorkspaceV4: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("风格分支树")
                         .font(.title2.weight(.bold))
-                    Text("根风格 → 增量分支 → 继续分支")
+                    Text("纯视觉风格 → 增量变化；不保存任何具体主体")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -141,7 +141,7 @@ struct StyleLibraryWorkspaceV4: View {
             ContentUnavailableView(
                 "选择一个风格",
                 systemImage: "photo.on.rectangle.angled",
-                description: Text("左侧是可以无限分支的风格资产树。每个正式节点都有完整样板。")
+                description: Text("左侧只管理媒介、色彩、光线、构图、镜头、质感和氛围。样板只用于预览。")
             )
         }
     }
@@ -256,7 +256,7 @@ private struct StyleNodeDetailView: View {
     private var sampleGallery: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("完整样板").font(.headline)
+                Text("风格视觉样板（仅预览，不作为生图内容参考）").font(.headline)
                 Spacer()
                 Text(store.sampleStatusText(for: card))
                     .font(.caption)
@@ -332,7 +332,7 @@ private struct StyleNodeDetailView: View {
 
     private var promptSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(card.parentID == nil ? "根提示词" : "本分支增加的变化")
+            Text(card.parentID == nil ? "纯风格根提示词" : "本分支增加的纯风格变化")
                 .font(.headline)
             Text(card.prompt)
                 .font(.body.monospaced())
@@ -470,18 +470,18 @@ private struct StyleNodeEditorSheet: View {
     private var sheetDescription: String {
         switch request.mode {
         case .createRoot:
-            "根风格必须包含完整提示词和至少一张样板图。"
+            "根风格必须只描述视觉处理，并至少包含一张预览样板；不能写具体人物、场景或道具。"
         case .createBranch(let parentID):
-            "只写相对“\(store.styleCard(parentID)?.title ?? "父风格")”增加的变化。没有新样板时会保存为持久化实验分支。"
+            "只写相对“\(store.styleCard(parentID)?.title ?? "父风格")”增加的媒介、色彩、光线、构图、镜头、线条、质感或氛围变化。"
         case .edit:
-            "修改当前节点只影响本节点；所有后代会动态继承更新后的提示词。"
+            "修改当前纯风格节点只影响本节点；具体人物、场景和道具必须来自剧本资产库。"
         }
     }
 
     private var promptPlaceholder: String {
         switch request.mode {
-        case .createBranch: "例如：保持父风格，改为低照度冷月光，并增加潮湿地面反射"
-        default: "输入精确、可复用的完整风格提示词"
+        case .createBranch: "例如：保持父风格，改为低照度冷色侧光、低饱和色盘与细颗粒质感"
+        default: "只输入媒介、渲染、色彩、光线、构图、镜头、线条、质感与氛围"
         }
     }
 
